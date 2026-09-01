@@ -34,11 +34,20 @@ create type notification_type as enum
   ('batch_bill_published', 'tax_bill_published', 'payment_confirmed', 'payment_rejected');
 
 -- ── Profiles (extends Supabase auth.users; both Admin GO and customers) ─
+--
+-- Auth plan: LINE Login is the ONLY sign-in method — no email/password,
+-- no other OAuth provider. LINE Login is OIDC-compliant (issues a signed
+-- id_token), which Supabase Auth accepts via signInWithIdToken() once
+-- LINE is registered as a custom OIDC provider on the project. See
+-- README.md "Auth" section for the end-to-end flow and its consequences
+-- (no self-serve admin signup; role is granted manually).
 
 create table profiles (
   id uuid primary key references auth.users (id) on delete cascade,
+  line_user_id text not null unique,   -- LINE's stable `sub` claim
   role user_role not null default 'customer',
-  full_name text not null,
+  full_name text not null,             -- seeded from LINE displayName, editable after
+  avatar_url text,                     -- seeded from LINE pictureUrl
   created_at timestamptz not null default now()
 );
 
