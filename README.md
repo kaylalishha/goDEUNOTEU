@@ -1,32 +1,47 @@
-# React + TypeScript + Vite
+# GO Aikatsu — Admin Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Admin dashboard for a Group Order (GO) business purchasing Aikatsu products
+from Mercari Japan, per the product's PRD. Covers order recap (Box → Batch →
+Item → Customer), batch payment management, tax bill management (Tagihan
+Pajak EMS), and Price Estimator configuration.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19 + TypeScript, built with Vite
+- React Router (hash routing)
+- Zustand (+ `persist`) for state — currently the only data layer
+- Tailwind CSS v4
 
-## React Compiler
+## Running locally
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Current data layer
+
+The app runs entirely on the Zustand store in `src/store/useStore.ts`,
+persisted to `localStorage`. There is no backend yet — item photos and
+bukti transfer uploads are stored as base64 data URLs in the browser. This
+is fine for demoing the workflows, but doesn't scale past a single device
+or survive a cleared browser.
+
+## Backend (scaffolded, not yet wired up)
+
+`supabase/migrations/0001_init.sql` has a Postgres schema mirroring
+`src/types.ts` (batches, items, batch_bills, tax_bills, estimator_config,
+notifications), with Row Level Security policies so customers only ever
+see their own rows and Admin GO has full access. `src/lib/supabaseClient.ts`
+is a client stub — nothing in the app calls it yet.
+
+To connect a real project:
+
+1. Create a project at [supabase.com](https://supabase.com), run the
+   migration (`supabase db push` or paste it into the SQL editor).
+2. Create the `batch-photos` and `bukti-transfer` storage buckets (see the
+   comment at the bottom of the migration file) and add matching storage
+   policies.
+3. Copy `.env.example` to `.env` and fill in your project URL/anon key.
+4. Swap the relevant `useStore.ts` actions to call Supabase instead of
+   mutating local state — not done yet, since it touches every page.
