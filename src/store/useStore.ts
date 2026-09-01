@@ -18,6 +18,7 @@ import type {
   EstimatorConfig,
   Item,
   OrderStatus,
+  OrderType,
   TaxBill,
   TaxBillStatus,
   TipeBarang,
@@ -48,6 +49,7 @@ export interface SaveBatchInput {
   batchId?: string
   batchNumber: string
   boxNumber: string
+  orderType: OrderType
   photoDataUrl?: string
   upnotesTotal: number
   orderStatus: OrderStatus
@@ -164,6 +166,7 @@ export const useStore = create<StoreState>()(
             id: batchId,
             batchNumber: input.batchNumber,
             boxNumber: input.boxNumber,
+            orderType: input.orderType,
             photoDataUrl: input.photoDataUrl,
             upnotesTotal: input.upnotesTotal,
             orderStatus: input.orderStatus,

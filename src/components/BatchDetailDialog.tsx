@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { formatDate, formatIDR, formatJPY } from '../lib/format'
 import { copyText } from '../lib/clipboard'
+import { buildTagihanTemplate } from '../lib/tagihanTemplate'
 import { ImageLightbox } from './ImageLightbox'
 import { BuktiTransferReview } from './BuktiTransferReview'
 import { StatusBadge } from './StatusBadge'
@@ -43,6 +44,15 @@ export function BatchDetailDialog({
   const customerIds = Array.from(new Set(items.map((i) => i.customerId)))
   const grandTotal = items.reduce((sum, i) => sum + i.priceIDR, 0)
 
+  const tagihanText = buildTagihanTemplate({
+    batchNumber: batch.batchNumber,
+    orderType: batch.orderType,
+    customerLines: customerIds.map((cid) => {
+      const total = items.filter((i) => i.customerId === cid).reduce((s, i) => s + i.priceIDR, 0)
+      return `${getCustomerName(cid)} ${formatIDR(total)}`
+    }),
+  })
+
   function toggle(customerId: string) {
     setExpanded((set) => {
       const next = new Set(set)
@@ -70,8 +80,7 @@ export function BatchDetailDialog({
   }
 
   async function handleCopyTagihan() {
-    const text = `Tagihan!! ${customerIds.map((cid) => `@${getCustomerName(cid)}`).join(' ')}`
-    const ok = await copyText(text)
+    const ok = await copyText(tagihanText)
     pushToast(ok ? 'Teks tagihan disalin.' : 'Gagal menyalin teks tagihan.', ok ? 'success' : 'error')
   }
 
@@ -138,9 +147,9 @@ export function BatchDetailDialog({
                 Template Tagihan
               </p>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <p className="whitespace-pre-line text-sm text-slate-700">
-                  {`Tagihan!! ${customerIds.map((cid) => `@${getCustomerName(cid)}`).join(' ')}`}
-                </p>
+                <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-700">
+                  {tagihanText}
+                </pre>
                 <button
                   onClick={handleCopyTagihan}
                   className="mt-2 text-xs font-medium text-rose-600 hover:underline"

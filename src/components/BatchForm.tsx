@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import {
   ORDER_STATUS_OPTIONS,
+  ORDER_TYPE_OPTIONS,
   TIPE_BARANG_OPTIONS,
   TIPE_KARTU_OPTIONS,
   type Batch,
   type Customer,
   type Item,
   type OrderStatus,
+  type OrderType,
   type TipeBarang,
   type TipeKartu,
 } from '../types'
@@ -74,6 +76,7 @@ export function BatchForm({
 
   const [batchNumber, setBatchNumber] = useState(initial?.batch.batchNumber ?? '')
   const [boxNumber, setBoxNumber] = useState(initial?.batch.boxNumber ?? '')
+  const [orderType, setOrderType] = useState<OrderType>(initial?.batch.orderType ?? 'Group Order')
   const [photoDataUrl, setPhotoDataUrl] = useState(initial?.batch.photoDataUrl)
   const [upnotesTotal, setUpnotesTotal] = useState(initial?.batch.upnotesTotal ?? 0)
   const [orderStatus, setOrderStatus] = useState<OrderStatus>(
@@ -156,6 +159,7 @@ export function BatchForm({
       batchId: initial?.batch.id,
       batchNumber,
       boxNumber,
+      orderType,
       photoDataUrl,
       upnotesTotal,
       orderStatus,
@@ -196,6 +200,20 @@ export function BatchForm({
               onChange={(e) => setBoxNumber(e.target.value)}
               placeholder="BOX-001"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Order Type</label>
+            <select
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+              value={orderType}
+              onChange={(e) => setOrderType(e.target.value as OrderType)}
+            >
+              {ORDER_TYPE_OPTIONS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">

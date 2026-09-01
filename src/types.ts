@@ -35,6 +35,9 @@ export const ORDER_STATUS_OPTIONS = [
 ] as const
 export type OrderStatus = (typeof ORDER_STATUS_OPTIONS)[number]
 
+export const ORDER_TYPE_OPTIONS = ['Persod', 'Group Order', 'Admin'] as const
+export type OrderType = (typeof ORDER_TYPE_OPTIONS)[number]
+
 export const BATCH_BILL_STATUSES = [
   'Belum Lunas',
   'Menunggu Konfirmasi',
@@ -72,6 +75,7 @@ export interface Batch {
   id: string
   batchNumber: string
   boxNumber: string
+  orderType: OrderType
   photoDataUrl?: string
   upnotesTotal: number
   orderStatus: OrderStatus
