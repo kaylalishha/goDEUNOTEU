@@ -10,6 +10,7 @@ import { BATCH_BILL_STATUSES, type BatchBillStatus } from '../types'
 
 export default function BatchPayments() {
   const customers = useStore((s) => s.customers)
+  const batches = useStore((s) => s.batches)
   const items = useStore((s) => s.items)
   const batchBills = useStore((s) => s.batchBills)
   const getCustomerName = useStore((s) => s.getCustomerName)
@@ -154,6 +155,7 @@ export default function BatchPayments() {
         <Modal title="Create Batch Bill" onClose={() => setFormOpen(false)} wide>
           <CreateBatchBillForm
             customers={customers}
+            batches={batches}
             items={items}
             existingBillItemIds={existingBillItemIds}
             onSubmit={(input) => {

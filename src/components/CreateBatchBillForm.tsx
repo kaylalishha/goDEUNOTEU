@@ -1,20 +1,23 @@
 import { useMemo, useState } from 'react'
-import type { Customer, Item } from '../types'
+import type { Batch, Customer, Item } from '../types'
 import { formatIDR, formatJPY } from '../lib/format'
 
 const DEFAULT_BANK_ACCOUNT = 'BCA 1234567890 a.n. Admin GO Aikatsu'
 
 export function CreateBatchBillForm({
   customers,
+  batches,
   items,
   existingBillItemIds,
   onSubmit,
   onCancel,
 }: {
   customers: Customer[]
+  batches: Batch[]
   items: Item[]
   existingBillItemIds: Set<string>
   onSubmit: (input: {
+    batchId: string
     customerId: string
     batchNumber: string
     itemIds: string[]
@@ -24,41 +27,42 @@ export function CreateBatchBillForm({
   onCancel: () => void
 }) {
   const [customerId, setCustomerId] = useState('')
-  const [batchNumber, setBatchNumber] = useState('')
+  const [batchId, setBatchId] = useState('')
+  const [upnotesTotal, setUpnotesTotal] = useState(0)
   const [bankAccount, setBankAccount] = useState(DEFAULT_BANK_ACCOUNT)
   const [error, setError] = useState<string | null>(null)
 
   const batchOptionsForCustomer = useMemo(() => {
     if (!customerId) return []
-    return Array.from(
-      new Set(items.filter((i) => i.customerId === customerId).map((i) => i.batchNumber)),
+    const batchIds = new Set(
+      items.filter((i) => i.customerId === customerId).map((i) => i.batchId),
     )
-  }, [items, customerId])
+    return batches.filter((b) => batchIds.has(b.id))
+  }, [items, batches, customerId])
+
+  const selectedBatch = batches.find((b) => b.id === batchId)
 
   const availableItems = useMemo(() => {
-    if (!customerId || !batchNumber) return []
+    if (!customerId || !batchId) return []
     return items.filter(
-      (i) =>
-        i.customerId === customerId &&
-        i.batchNumber === batchNumber &&
-        !existingBillItemIds.has(i.id),
+      (i) => i.customerId === customerId && i.batchId === batchId && !existingBillItemIds.has(i.id),
     )
-  }, [items, customerId, batchNumber, existingBillItemIds])
+  }, [items, customerId, batchId, existingBillItemIds])
 
   const itemTotal = availableItems.reduce((sum, i) => sum + i.priceIDR, 0)
-  const upnotesTotal = availableItems.reduce((sum, i) => sum + (i.upnotes ?? 0), 0)
   const total = itemTotal + upnotesTotal
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!customerId) return setError('Pilih customer terlebih dahulu.')
-    if (!batchNumber) return setError('Pilih batch number.')
+    if (!selectedBatch) return setError('Pilih batch.')
     if (availableItems.length === 0) return setError('Tidak ada item yang bisa ditagihkan pada batch ini.')
     if (!bankAccount.trim()) return setError('Informasi rekening bank wajib diisi.')
     setError(null)
     onSubmit({
+      batchId: selectedBatch.id,
       customerId,
-      batchNumber,
+      batchNumber: selectedBatch.batchNumber,
       itemIds: availableItems.map((i) => i.id),
       upnotesTotal,
       bankAccount,
@@ -75,7 +79,7 @@ export function CreateBatchBillForm({
             value={customerId}
             onChange={(e) => {
               setCustomerId(e.target.value)
-              setBatchNumber('')
+              setBatchId('')
             }}
           >
             <option value="">Pilih customer…</option>
@@ -90,21 +94,21 @@ export function CreateBatchBillForm({
           <label className="mb-1 block text-sm font-medium text-slate-700">Batch Number</label>
           <select
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            value={batchNumber}
-            onChange={(e) => setBatchNumber(e.target.value)}
+            value={batchId}
+            onChange={(e) => setBatchId(e.target.value)}
             disabled={!customerId}
           >
             <option value="">Pilih batch…</option>
             {batchOptionsForCustomer.map((b) => (
-              <option key={b} value={b}>
-                {b}
+              <option key={b.id} value={b.id}>
+                {b.batchNumber} · Box {b.boxNumber}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {customerId && batchNumber && (
+      {customerId && batchId && (
         <div className="rounded-lg border border-slate-200 p-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
             Item pada batch ini (auto-populated)
@@ -128,6 +132,24 @@ export function CreateBatchBillForm({
           )}
         </div>
       )}
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700">
+          Upnotes Amount <span className="font-normal text-slate-400">(bagian customer ini, opsional)</span>
+        </label>
+        <input
+          type="number"
+          min={0}
+          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+          value={upnotesTotal || ''}
+          onChange={(e) => setUpnotesTotal(Number(e.target.value))}
+        />
+        {selectedBatch && selectedBatch.upnotesTotal > 0 && (
+          <p className="mt-1 text-xs text-slate-400">
+            Referensi — total upnotes batch ini: {formatIDR(selectedBatch.upnotesTotal)}
+          </p>
+        )}
+      </div>
 
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-700">Bank Account (untuk transfer)</label>

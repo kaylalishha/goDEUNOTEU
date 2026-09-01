@@ -66,18 +66,27 @@ export interface BuktiTransfer {
   uploadedAt: string
 }
 
+// FR-GO-A-001: one submitted recap form = one Batch = one order/invoice
+// link back to the seller. A Batch can hold items for several customers.
+export interface Batch {
+  id: string
+  batchNumber: string
+  boxNumber: string
+  photoDataUrl?: string
+  upnotesTotal: number
+  orderStatus: OrderStatus
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Item {
   id: string
-  boxNumber?: string
-  batchNumber: string
+  batchId: string
   customerId: string
   tipeBarang: TipeBarang
   tipeKartu?: TipeKartu
   priceJPY: number
   priceIDR: number
-  photoDataUrl?: string
-  upnotes?: number
-  orderStatus: OrderStatus
   weightGrams?: number
   createdAt: string
   updatedAt: string
@@ -85,6 +94,7 @@ export interface Item {
 
 export interface BatchBill {
   id: string
+  batchId: string
   batchNumber: string
   customerId: string
   itemIds: string[]
@@ -93,6 +103,7 @@ export interface BatchBill {
   total: number
   status: BatchBillStatus
   createdAt: string
+  paidAt?: string
   buktiTransfer?: BuktiTransfer
 }
 

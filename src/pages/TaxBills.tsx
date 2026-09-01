@@ -32,6 +32,7 @@ function DeadlineBadge({ deadline, status }: { deadline: string; status: TaxBill
 
 export default function TaxBills() {
   const customers = useStore((s) => s.customers)
+  const batches = useStore((s) => s.batches)
   const items = useStore((s) => s.items)
   const taxBills = useStore((s) => s.taxBills)
   const getCustomerName = useStore((s) => s.getCustomerName)
@@ -45,12 +46,13 @@ export default function TaxBills() {
   const [statusFilter, setStatusFilter] = useState<TaxBillStatus | ''>('')
 
   const boxOptions = useMemo(
-    () => Array.from(new Set(items.map((i) => i.boxNumber).filter(Boolean))) as string[],
-    [items],
+    () => Array.from(new Set(batches.map((b) => b.boxNumber))),
+    [batches],
   )
 
   function itemsByBox(boxNumber: string) {
-    return items.filter((i) => i.boxNumber === boxNumber)
+    const batchIds = new Set(batches.filter((b) => b.boxNumber === boxNumber).map((b) => b.id))
+    return items.filter((i) => batchIds.has(i.batchId))
   }
 
   function alreadyPublishedCustomerIds(boxNumber: string) {

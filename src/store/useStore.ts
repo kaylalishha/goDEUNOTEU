@@ -3,20 +3,25 @@ import { persist } from 'zustand/middleware'
 import { makeId } from '../lib/id'
 import {
   seedBatchBills,
+  seedBatches,
   seedCustomers,
   seedEstimatorConfig,
   seedItems,
   seedTaxBills,
 } from './seed'
 import type {
+  Batch,
   BatchBill,
   BatchBillStatus,
   BuktiTransfer,
   Customer,
   EstimatorConfig,
   Item,
+  OrderStatus,
   TaxBill,
   TaxBillStatus,
+  TipeBarang,
+  TipeKartu,
 } from '../types'
 import { TAX_PAYMENT_WINDOW_DAYS } from '../types'
 
@@ -26,8 +31,32 @@ interface Toast {
   tone: 'success' | 'error' | 'info'
 }
 
+export interface CustomerOrderItemInput {
+  id?: string
+  tipeBarang: TipeBarang
+  tipeKartu?: TipeKartu
+  priceJPY: number
+  priceIDR: number
+}
+
+export interface CustomerOrderInput {
+  customerId: string
+  items: CustomerOrderItemInput[]
+}
+
+export interface SaveBatchInput {
+  batchId?: string
+  batchNumber: string
+  boxNumber: string
+  photoDataUrl?: string
+  upnotesTotal: number
+  orderStatus: OrderStatus
+  customerOrders: CustomerOrderInput[]
+}
+
 interface StoreState {
   customers: Customer[]
+  batches: Batch[]
   items: Item[]
   batchBills: BatchBill[]
   taxBills: TaxBill[]
@@ -41,18 +70,21 @@ interface StoreState {
   pushToast: (message: string, tone?: Toast['tone']) => void
   dismissToast: (id: string) => void
 
-  // Feature A
-  addItem: (item: Omit<Item, 'id' | 'createdAt' | 'updatedAt'>) => void
-  updateItem: (id: string, patch: Partial<Omit<Item, 'id'>>) => void
+  // Feature A — one submitted form = one Batch, containing per-customer items
+  saveBatch: (input: SaveBatchInput) => void
   setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
 
   // Feature B
   createBatchBill: (
-    input: Omit<BatchBill, 'id' | 'total' | 'status' | 'createdAt' | 'buktiTransfer'>,
+    input: Omit<
+      BatchBill,
+      'id' | 'total' | 'status' | 'createdAt' | 'buktiTransfer' | 'paidAt'
+    >,
   ) => void
   simulateCustomerUploadBatch: (batchBillId: string) => void
   confirmBatchBill: (batchBillId: string) => void
   rejectBatchBill: (batchBillId: string) => void
+  updateBatchBillPaidAt: (batchBillId: string, paidAt: string | undefined) => void
 
   // Feature C
   publishTaxBills: (
@@ -80,10 +112,29 @@ function attachDemoBukti(): BuktiTransfer {
   }
 }
 
+function recomputeBillTotals(items: Item[], batchBills: BatchBill[]): BatchBill[] {
+  const itemIds = new Set(items.map((i) => i.id))
+  return batchBills.map((bill) => {
+    const stillPresent = bill.itemIds.filter((id) => itemIds.has(id))
+    const itemTotal = stillPresent.reduce((sum, id) => {
+      const it = items.find((i) => i.id === id)
+      return sum + (it?.priceIDR ?? 0)
+    }, 0)
+    if (
+      stillPresent.length === bill.itemIds.length &&
+      itemTotal + bill.upnotesTotal === bill.total
+    ) {
+      return bill
+    }
+    return { ...bill, itemIds: stillPresent, total: itemTotal + bill.upnotesTotal }
+  })
+}
+
 export const useStore = create<StoreState>()(
   persist(
     (set, get) => ({
       customers: seedCustomers,
+      batches: seedBatches,
       items: seedItems,
       batchBills: seedBatchBills,
       taxBills: seedTaxBills,
@@ -103,31 +154,61 @@ export const useStore = create<StoreState>()(
       dismissToast: (id) =>
         set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
-      addItem: (item) => {
+      saveBatch: (input) => {
         const now = new Date().toISOString()
-        const newItem: Item = { ...item, id: makeId('item'), createdAt: now, updatedAt: now }
-        set((s) => ({ items: [newItem, ...s.items] }))
-        get().pushToast('Item record berhasil disimpan.', 'success')
-      },
+        const isEdit = Boolean(input.batchId)
+        const batchId = input.batchId ?? makeId('batch')
 
-      updateItem: (id, patch) => {
         set((s) => {
-          const items = s.items.map((it) =>
-            it.id === id ? { ...it, ...patch, updatedAt: new Date().toISOString() } : it,
+          const batch: Batch = {
+            id: batchId,
+            batchNumber: input.batchNumber,
+            boxNumber: input.boxNumber,
+            photoDataUrl: input.photoDataUrl,
+            upnotesTotal: input.upnotesTotal,
+            orderStatus: input.orderStatus,
+            createdAt: isEdit
+              ? (s.batches.find((b) => b.id === batchId)?.createdAt ?? now)
+              : now,
+            updatedAt: now,
+          }
+          const batches = isEdit
+            ? s.batches.map((b) => (b.id === batchId ? batch : b))
+            : [batch, ...s.batches]
+
+          const incomingItems: Item[] = input.customerOrders.flatMap((order) =>
+            order.items.map((it) => ({
+              id: it.id ?? makeId('item'),
+              batchId,
+              customerId: order.customerId,
+              tipeBarang: it.tipeBarang,
+              tipeKartu: it.tipeKartu,
+              priceJPY: it.priceJPY,
+              priceIDR: it.priceIDR,
+              weightGrams: it.id
+                ? s.items.find((i) => i.id === it.id)?.weightGrams
+                : undefined,
+              createdAt: it.id
+                ? (s.items.find((i) => i.id === it.id)?.createdAt ?? now)
+                : now,
+              updatedAt: now,
+            })),
           )
-          // FR-GO-A-003: if a bill already references this item, keep its total in sync.
-          const batchBills = s.batchBills.map((bill) => {
-            if (!bill.itemIds.includes(id)) return bill
-            const total =
-              bill.itemIds.reduce((sum, itemId) => {
-                const it = items.find((i) => i.id === itemId)
-                return sum + (it?.priceIDR ?? 0)
-              }, 0) + bill.upnotesTotal
-            return { ...bill, total }
-          })
-          return { items, batchBills }
+
+          const items = [
+            ...s.items.filter((i) => i.batchId !== batchId),
+            ...incomingItems,
+          ]
+
+          const batchBills = recomputeBillTotals(items, s.batchBills)
+
+          return { batches, items, batchBills }
         })
-        get().pushToast('Item record berhasil diperbarui.', 'success')
+
+        get().pushToast(
+          isEdit ? 'Batch record berhasil diperbarui.' : 'Batch record berhasil disimpan.',
+          'success',
+        )
       },
 
       setItemWeights: (weights) => {
@@ -170,7 +251,9 @@ export const useStore = create<StoreState>()(
       confirmBatchBill: (batchBillId) => {
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
-            b.id === batchBillId ? { ...b, status: 'Lunas' as BatchBillStatus } : b,
+            b.id === batchBillId
+              ? { ...b, status: 'Lunas' as BatchBillStatus, paidAt: new Date().toISOString() }
+              : b,
           ),
         }))
         get().pushToast('Pembayaran batch dikonfirmasi — status Lunas.', 'success')
@@ -180,11 +263,18 @@ export const useStore = create<StoreState>()(
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
-              ? { ...b, status: 'Belum Lunas' as BatchBillStatus, buktiTransfer: undefined }
+              ? { ...b, status: 'Belum Lunas' as BatchBillStatus, buktiTransfer: undefined, paidAt: undefined }
               : b,
           ),
         }))
         get().pushToast('Bukti transfer ditolak — customer diminta upload ulang.', 'error')
+      },
+
+      updateBatchBillPaidAt: (batchBillId, paidAt) => {
+        set((s) => ({
+          batchBills: s.batchBills.map((b) => (b.id === batchBillId ? { ...b, paidAt } : b)),
+        }))
+        get().pushToast('Tanggal pembayaran diperbarui.', 'success')
       },
 
       publishTaxBills: (bills) => {
@@ -242,6 +332,6 @@ export const useStore = create<StoreState>()(
         get().pushToast('Konfigurasi Price Estimator disimpan dan langsung berlaku.', 'success')
       },
     }),
-    { name: 'go-aikatsu-admin-store' },
+    { name: 'go-aikatsu-admin-store-v2' },
   ),
 )

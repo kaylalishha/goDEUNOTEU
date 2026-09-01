@@ -1,71 +1,55 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
-import { ItemForm, type ItemFormValues } from '../components/ItemForm'
-import { formatDate, formatIDR, formatJPY } from '../lib/format'
-import type { Item } from '../types'
+import { BatchForm } from '../components/BatchForm'
+import { BatchDetailDialog } from '../components/BatchDetailDialog'
+import { formatDate, formatIDR } from '../lib/format'
+import type { Batch } from '../types'
 import { EmptyState } from '../components/EmptyState'
+import type { SaveBatchInput } from '../store/useStore'
 
 export default function OrderRecap() {
+  const batches = useStore((s) => s.batches)
   const items = useStore((s) => s.items)
   const customers = useStore((s) => s.customers)
   const getCustomerName = useStore((s) => s.getCustomerName)
-  const addItem = useStore((s) => s.addItem)
-  const updateItem = useStore((s) => s.updateItem)
+  const saveBatch = useStore((s) => s.saveBatch)
 
   const [boxFilter, setBoxFilter] = useState('')
   const [batchFilter, setBatchFilter] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
   const [formOpen, setFormOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<Item | null>(null)
+  const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
+  const [viewingBatchId, setViewingBatchId] = useState<string | null>(null)
 
   const boxOptions = useMemo(
-    () => Array.from(new Set(items.map((i) => i.boxNumber).filter(Boolean))) as string[],
-    [items],
+    () => Array.from(new Set(batches.map((b) => b.boxNumber))),
+    [batches],
   )
   const batchOptions = useMemo(
-    () => Array.from(new Set(items.map((i) => i.batchNumber))),
-    [items],
+    () => Array.from(new Set(batches.map((b) => b.batchNumber))),
+    [batches],
   )
 
-  const filtered = items.filter((it) => {
-    if (boxFilter && it.boxNumber !== boxFilter) return false
-    if (batchFilter && it.batchNumber !== batchFilter) return false
-    if (customerFilter && it.customerId !== customerFilter) return false
+  const filtered = batches.filter((b) => {
+    if (boxFilter && b.boxNumber !== boxFilter) return false
+    if (batchFilter && b.batchNumber !== batchFilter) return false
+    if (customerFilter) {
+      const hasCustomer = items.some((i) => i.batchId === b.id && i.customerId === customerFilter)
+      if (!hasCustomer) return false
+    }
     return true
   })
+  const sorted = [...filtered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 
-  function handleCreate(values: ItemFormValues) {
-    addItem({
-      boxNumber: values.boxNumber || undefined,
-      batchNumber: values.batchNumber,
-      customerId: values.customerId,
-      tipeBarang: values.tipeBarang,
-      tipeKartu: values.tipeKartu,
-      priceJPY: values.priceJPY,
-      priceIDR: values.priceIDR,
-      photoDataUrl: values.photoDataUrl,
-      upnotes: values.upnotes,
-      orderStatus: values.orderStatus,
-    })
+  function handleCreate(input: SaveBatchInput) {
+    saveBatch(input)
     setFormOpen(false)
   }
 
-  function handleEdit(values: ItemFormValues) {
-    if (!editingItem) return
-    updateItem(editingItem.id, {
-      boxNumber: values.boxNumber || undefined,
-      batchNumber: values.batchNumber,
-      customerId: values.customerId,
-      tipeBarang: values.tipeBarang,
-      tipeKartu: values.tipeKartu,
-      priceJPY: values.priceJPY,
-      priceIDR: values.priceIDR,
-      photoDataUrl: values.photoDataUrl,
-      upnotes: values.upnotes,
-      orderStatus: values.orderStatus,
-    })
-    setEditingItem(null)
+  function handleEdit(input: SaveBatchInput) {
+    saveBatch(input)
+    setEditingBatch(null)
   }
 
   return (
@@ -74,15 +58,15 @@ export default function OrderRecap() {
         <div>
           <h2 className="text-xl font-bold text-slate-900">A · Standardized Order Recap Form</h2>
           <p className="text-sm text-slate-500">
-            Satu form untuk semua data item — foto dan upnotes langsung menempel ke record, tidak lagi
-            terpisah di Google Sheets / LINE Notes.
+            Satu form = satu batch = satu invoice/order link. Foto, upnotes, dan status batch tidak lagi
+            terpisah di Google Sheets / LINE Notes — satu batch bisa berisi order dari beberapa customer.
           </p>
         </div>
         <button
           onClick={() => setFormOpen(true)}
           className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-rose-700"
         >
-          + New Item Record
+          + New Batch Record
         </button>
       </div>
 
@@ -144,86 +128,119 @@ export default function OrderRecap() {
             Reset filter
           </button>
         )}
-        <span className="ml-auto text-xs text-slate-400">{filtered.length} record ditemukan</span>
+        <span className="ml-auto text-xs text-slate-400">{sorted.length} batch ditemukan</span>
       </div>
 
-      {filtered.length === 0 ? (
-        <EmptyState message="Belum ada item record yang cocok dengan filter ini." />
+      {sorted.length === 0 ? (
+        <EmptyState message="Belum ada batch record yang cocok dengan filter ini." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
+                <th className="px-4 py-3">Foto</th>
                 <th className="px-4 py-3">Box</th>
                 <th className="px-4 py-3">Batch</th>
                 <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Foto</th>
-                <th className="px-4 py-3">Tipe Barang</th>
-                <th className="px-4 py-3">Tipe Kartu</th>
-                <th className="px-4 py-3">Harga (JPY)</th>
-                <th className="px-4 py-3">Harga (IDR)</th>
+                <th className="px-4 py-3">Total Item</th>
                 <th className="px-4 py-3">Upnotes</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filtered.map((it) => (
-                <tr key={it.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-slate-500">{it.boxNumber ?? '—'}</td>
-                  <td className="px-4 py-3 font-medium text-slate-900">{it.batchNumber}</td>
-                  <td className="px-4 py-3 text-slate-700">{getCustomerName(it.customerId)}</td>
-                  <td className="px-4 py-3">
-                    {it.photoDataUrl ? (
-                      <img src={it.photoDataUrl} alt="item" className="h-10 w-10 rounded object-cover" />
-                    ) : (
-                      <span className="text-xs text-slate-400">no photo</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-700">{it.tipeBarang}</td>
-                  <td className="px-4 py-3 text-slate-500">{it.tipeKartu ?? '—'}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatJPY(it.priceJPY)}</td>
-                  <td className="px-4 py-3 text-slate-700">{formatIDR(it.priceIDR)}</td>
-                  <td className="px-4 py-3 text-slate-500">{it.upnotes ? formatIDR(it.upnotes) : '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                      {it.orderStatus}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => setEditingItem(it)}
-                      className="text-xs font-medium text-rose-600 hover:underline"
-                    >
-                      Edit
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {sorted.map((batch) => {
+                const batchItems = items.filter((i) => i.batchId === batch.id)
+                const customerIds = new Set(batchItems.map((i) => i.customerId))
+                const total = batchItems.reduce((sum, i) => sum + i.priceIDR, 0)
+                return (
+                  <tr
+                    key={batch.id}
+                    className="cursor-pointer hover:bg-slate-50"
+                    onClick={() => setViewingBatchId(batch.id)}
+                  >
+                    <td className="px-4 py-3">
+                      {batch.photoDataUrl ? (
+                        <img
+                          src={batch.photoDataUrl}
+                          alt="batch"
+                          className="h-10 w-10 rounded object-cover"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-400">no photo</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{batch.boxNumber}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">{batch.batchNumber}</td>
+                    <td className="px-4 py-3 text-slate-700">
+                      {Array.from(customerIds)
+                        .map((cid) => getCustomerName(cid))
+                        .join(', ') || '—'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-700">{formatIDR(total)}</td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {batch.upnotesTotal ? formatIDR(batch.upnotesTotal) : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {batch.orderStatus}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setEditingBatch(batch)
+                        }}
+                        className="text-xs font-medium text-rose-600 hover:underline"
+                      >
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       )}
 
       <p className="text-xs text-slate-400">
-        Data terakhir diperbarui: {items[0] ? formatDate(items[0].updatedAt) : '—'}
+        Data terakhir diperbarui: {sorted[0] ? formatDate(sorted[0].updatedAt) : '—'}
       </p>
 
       {formOpen && (
-        <Modal title="New Item Record" onClose={() => setFormOpen(false)} wide>
-          <ItemForm customers={customers} onSubmit={handleCreate} onCancel={() => setFormOpen(false)} />
+        <Modal title="New Batch Record" onClose={() => setFormOpen(false)} wide>
+          <BatchForm customers={customers} onSubmit={handleCreate} onCancel={() => setFormOpen(false)} />
         </Modal>
       )}
 
-      {editingItem && (
-        <Modal title="Edit Item Record" onClose={() => setEditingItem(null)} wide>
-          <ItemForm
+      {editingBatch && (
+        <Modal title="Edit Batch Record" onClose={() => setEditingBatch(null)} wide>
+          <BatchForm
             customers={customers}
-            initial={editingItem}
+            initial={{
+              batch: editingBatch,
+              items: items.filter((i) => i.batchId === editingBatch.id),
+            }}
             onSubmit={handleEdit}
-            onCancel={() => setEditingItem(null)}
+            onCancel={() => setEditingBatch(null)}
           />
         </Modal>
+      )}
+
+      {viewingBatchId && (
+        <BatchDetailDialog
+          batchId={viewingBatchId}
+          onClose={() => setViewingBatchId(null)}
+          onEdit={() => {
+            const b = batches.find((x) => x.id === viewingBatchId)
+            if (b) {
+              setEditingBatch(b)
+              setViewingBatchId(null)
+            }
+          }}
+        />
       )}
     </div>
   )

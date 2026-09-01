@@ -40,13 +40,14 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 }
 
 export default function Overview() {
+  const batches = useStore((s) => s.batches)
   const items = useStore((s) => s.items)
   const batchBills = useStore((s) => s.batchBills)
   const taxBills = useStore((s) => s.taxBills)
   const estimatorConfig = useStore((s) => s.estimatorConfig)
   const getCustomerName = useStore((s) => s.getCustomerName)
 
-  const itemsMissingPhoto = items.filter((it) => !it.photoDataUrl).length
+  const batchesMissingPhoto = batches.filter((b) => !b.photoDataUrl).length
 
   const bbBelumLunas = batchBills.filter((b) => b.status === 'Belum Lunas').length
   const bbMenunggu = batchBills.filter((b) => b.status === 'Menunggu Konfirmasi').length
@@ -101,11 +102,12 @@ export default function Overview() {
           question="Are all item details, photos, and upnotes for this batch recorded in one place?"
           to="/orders"
         >
-          <Stat label="Total item records" value={items.length} />
+          <Stat label="Total batch" value={batches.length} />
+          <Stat label="Total item record" value={items.length} />
           <Stat
-            label="Belum ada foto"
-            value={itemsMissingPhoto}
-            tone={itemsMissingPhoto > 0 ? 'warning' : undefined}
+            label="Batch belum ada foto"
+            value={batchesMissingPhoto}
+            tone={batchesMissingPhoto > 0 ? 'warning' : undefined}
           />
         </Card>
 

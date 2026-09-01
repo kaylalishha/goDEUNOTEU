@@ -1,4 +1,4 @@
-import type { BatchBill, Customer, EstimatorConfig, Item, TaxBill } from '../types'
+import type { Batch, BatchBill, Customer, EstimatorConfig, Item, TaxBill } from '../types'
 
 const PLACEHOLDER_RECEIPT =
   'data:image/svg+xml;utf8,' +
@@ -13,6 +13,17 @@ const PLACEHOLDER_RECEIPT =
       <text x="32" y="180" font-family="monospace" font-size="12" fill="#334155">Ref: TRX-DEMO-0001</text>
       <rect x="32" y="220" width="256" height="140" fill="#f1f5f9"/>
       <text x="160" y="295" font-family="monospace" font-size="11" text-anchor="middle" fill="#94a3b8">demo attachment</text>
+    </svg>
+  `)
+
+const PLACEHOLDER_PRODUCT_PHOTO =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="480" height="480">
+      <rect width="480" height="480" fill="#fff1f2"/>
+      <rect x="24" y="24" width="432" height="432" fill="#ffffff" stroke="#fecdd3" stroke-width="3" stroke-dasharray="10 8"/>
+      <text x="240" y="230" font-family="sans-serif" font-size="20" text-anchor="middle" fill="#9f1239">foto product</text>
+      <text x="240" y="258" font-family="sans-serif" font-size="13" text-anchor="middle" fill="#fb7185">(yg biasa ada di notes line)</text>
     </svg>
   `)
 
@@ -36,110 +47,123 @@ export const seedCustomers: Customer[] = [
   { id: 'cust_eka', name: 'Eka Putri' },
 ]
 
+export const seedBatches: Batch[] = [
+  {
+    id: 'batch_01',
+    batchNumber: 'BATCH-01',
+    boxNumber: 'BOX-001',
+    photoDataUrl: PLACEHOLDER_PRODUCT_PHOTO,
+    upnotesTotal: 15000,
+    orderStatus: 'Di WH Indonesia',
+    createdAt: daysAgoIso(12),
+    updatedAt: daysAgoIso(9),
+  },
+  {
+    id: 'batch_02',
+    batchNumber: 'BATCH-02',
+    boxNumber: 'BOX-002',
+    photoDataUrl: PLACEHOLDER_PRODUCT_PHOTO,
+    upnotesTotal: 0,
+    orderStatus: 'Di Bea Cukai',
+    createdAt: daysAgoIso(4),
+    updatedAt: daysAgoIso(4),
+  },
+  {
+    id: 'batch_03',
+    batchNumber: 'BATCH-03',
+    boxNumber: 'BOX-003',
+    upnotesTotal: 0,
+    orderStatus: 'Menunggu Pembayaran ke Seller',
+    createdAt: daysAgoIso(1),
+    updatedAt: daysAgoIso(1),
+  },
+]
+
 export const seedItems: Item[] = [
   {
     id: 'item_001',
-    boxNumber: 'BOX-001',
-    batchNumber: 'BATCH-01',
+    batchId: 'batch_01',
     customerId: 'cust_aiko',
     tipeBarang: 'Kartu',
     tipeKartu: 'Tops',
     priceJPY: 800,
     priceIDR: 96000,
-    photoDataUrl: undefined,
-    upnotes: 5000,
-    orderStatus: 'Di WH Indonesia',
     createdAt: daysAgoIso(12),
     updatedAt: daysAgoIso(10),
   },
   {
     id: 'item_002',
-    boxNumber: 'BOX-001',
-    batchNumber: 'BATCH-01',
+    batchId: 'batch_01',
     customerId: 'cust_aiko',
     tipeBarang: 'Kartu',
     tipeKartu: 'Set',
     priceJPY: 1500,
     priceIDR: 180000,
-    upnotes: undefined,
-    orderStatus: 'Di WH Indonesia',
     createdAt: daysAgoIso(12),
     updatedAt: daysAgoIso(12),
   },
   {
     id: 'item_003',
-    boxNumber: 'BOX-001',
-    batchNumber: 'BATCH-01',
+    batchId: 'batch_01',
     customerId: 'cust_bunga',
     tipeBarang: 'Boneka',
     priceJPY: 3200,
     priceIDR: 384000,
-    upnotes: 10000,
-    orderStatus: 'Di WH Indonesia',
     weightGrams: 420,
     createdAt: daysAgoIso(12),
     updatedAt: daysAgoIso(9),
   },
   {
     id: 'item_004',
-    boxNumber: 'BOX-001',
-    batchNumber: 'BATCH-01',
+    batchId: 'batch_01',
     customerId: 'cust_citra',
     tipeBarang: 'Binder',
     priceJPY: 2100,
     priceIDR: 252000,
-    orderStatus: 'Di WH Indonesia',
     weightGrams: 310,
     createdAt: daysAgoIso(11),
     updatedAt: daysAgoIso(11),
   },
   {
     id: 'item_005',
-    boxNumber: 'BOX-001',
-    batchNumber: 'BATCH-01',
+    batchId: 'batch_01',
     customerId: 'cust_citra',
     tipeBarang: 'Kartu',
     tipeKartu: 'Dress',
     priceJPY: 900,
     priceIDR: 108000,
-    orderStatus: 'Di WH Indonesia',
     createdAt: daysAgoIso(11),
     updatedAt: daysAgoIso(11),
   },
   {
     id: 'item_006',
-    boxNumber: 'BOX-002',
-    batchNumber: 'BATCH-02',
+    batchId: 'batch_02',
     customerId: 'cust_dewi',
     tipeBarang: 'Standee',
     priceJPY: 2600,
     priceIDR: 312000,
-    orderStatus: 'Di Bea Cukai',
     weightGrams: 560,
     createdAt: daysAgoIso(4),
     updatedAt: daysAgoIso(4),
   },
   {
     id: 'item_007',
-    boxNumber: 'BOX-002',
-    batchNumber: 'BATCH-02',
+    batchId: 'batch_02',
     customerId: 'cust_eka',
     tipeBarang: 'Kartu',
     tipeKartu: 'Shoes',
     priceJPY: 700,
     priceIDR: 84000,
-    orderStatus: 'Di Bea Cukai',
     createdAt: daysAgoIso(4),
     updatedAt: daysAgoIso(4),
   },
   {
     id: 'item_008',
-    batchNumber: 'BATCH-03',
+    batchId: 'batch_03',
     customerId: 'cust_bunga',
     tipeBarang: 'Ganci',
     priceJPY: 500,
     priceIDR: 60000,
-    orderStatus: 'Menunggu Pembayaran ke Seller',
     createdAt: daysAgoIso(1),
     updatedAt: daysAgoIso(1),
   },
@@ -148,6 +172,7 @@ export const seedItems: Item[] = [
 export const seedBatchBills: BatchBill[] = [
   {
     id: 'bbill_001',
+    batchId: 'batch_01',
     batchNumber: 'BATCH-01',
     customerId: 'cust_aiko',
     itemIds: ['item_001', 'item_002'],
@@ -156,6 +181,7 @@ export const seedBatchBills: BatchBill[] = [
     total: 96000 + 180000 + 5000,
     status: 'Lunas',
     createdAt: daysAgoIso(10),
+    paidAt: daysAgoIso(9),
     buktiTransfer: {
       fileName: 'bukti_aiko_batch01.png',
       dataUrl: PLACEHOLDER_RECEIPT,
@@ -164,6 +190,7 @@ export const seedBatchBills: BatchBill[] = [
   },
   {
     id: 'bbill_002',
+    batchId: 'batch_01',
     batchNumber: 'BATCH-01',
     customerId: 'cust_bunga',
     itemIds: ['item_003'],
@@ -180,6 +207,7 @@ export const seedBatchBills: BatchBill[] = [
   },
   {
     id: 'bbill_003',
+    batchId: 'batch_01',
     batchNumber: 'BATCH-01',
     customerId: 'cust_citra',
     itemIds: ['item_004', 'item_005'],
