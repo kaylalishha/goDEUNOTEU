@@ -35,20 +35,24 @@ create type notification_type as enum
 
 -- ── Profiles (extends Supabase auth.users; both Admin GO and customers) ─
 --
--- Auth plan: LINE Login is the ONLY sign-in method — no email/password,
--- no other OAuth provider. LINE Login is OIDC-compliant (issues a signed
--- id_token), which Supabase Auth accepts via signInWithIdToken() once
--- LINE is registered as a custom OIDC provider on the project. See
--- README.md "Auth" section for the end-to-end flow and its consequences
--- (no self-serve admin signup; role is granted manually).
+-- Two separate auth methods, one per dashboard — see README.md "Auth":
+--   - Customer Dashboard: LINE Login only (OIDC id_token via
+--     signInWithIdToken()). line_user_id is set, role = 'customer'.
+--   - Admin Dashboard: a normal website account (Supabase email/password
+--     auth), unrelated to LINE. line_user_id is null, role = 'admin'.
+-- A row is one or the other, never both — enforced below.
 
 create table profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  line_user_id text not null unique,   -- LINE's stable `sub` claim
+  line_user_id text unique,            -- LINE's stable `sub` claim; customers only
   role user_role not null default 'customer',
-  full_name text not null,             -- seeded from LINE displayName, editable after
-  avatar_url text,                     -- seeded from LINE pictureUrl
-  created_at timestamptz not null default now()
+  full_name text not null,             -- customers: seeded from LINE displayName
+  avatar_url text,                     -- customers: seeded from LINE pictureUrl
+  created_at timestamptz not null default now(),
+  constraint line_user_id_iff_customer check (
+    (role = 'customer' and line_user_id is not null) or
+    (role = 'admin' and line_user_id is null)
+  )
 );
 
 -- ── Feature A: Batches + Items ───────────────────────────────────────────

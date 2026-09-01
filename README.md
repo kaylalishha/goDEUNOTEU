@@ -43,36 +43,44 @@ To connect a real project:
    comment at the bottom of the migration file) and add matching storage
    policies.
 3. Copy `.env.example` to `.env` and fill in your project URL/anon key.
-4. Set up LINE Login per the Auth section below.
+4. Set up both auth methods per the Auth section below: enable Supabase's
+   email/password provider for Admin accounts, and register LINE as a
+   custom OIDC provider for the Customer dashboard.
 5. Swap the relevant `useStore.ts` actions to call Supabase instead of
    mutating local state — not done yet, since it touches every page.
 
 ## Auth (planned)
 
-**LINE Login is the only sign-in method** — no email/password, no other
-OAuth provider, for either dashboard. Both Admin GO and customers sign in
-through the same LINE flow; which dashboard they land on is decided
-afterward by `profiles.role`, not by a separate login form.
+The two dashboards use **two separate, unrelated sign-in methods** — there
+is no shared login screen and no SSO between them.
 
-Why this works: LINE Login (v2.1) is OpenID Connect–compliant — it issues
-a signed `id_token` carrying the user's stable LINE id (`sub`), display
-name, and profile picture. Supabase Auth can accept that directly via
-`supabase.auth.signInWithIdToken()` once LINE is registered as a custom
-OIDC provider on the project (LINE Developers Console → a "LINE Login"
-channel, Callback URL pointed at the Supabase Auth callback, Channel ID/
-Secret entered into Supabase's Auth provider settings).
+### Admin Dashboard — website account (no SSO)
 
-Consequences this has on the schema and app, worth keeping in mind:
+Admin GO signs in with a normal website account: Supabase Auth's built-in
+email/password provider. This is an internal tool, not a public signup —
+admin accounts are provisioned out-of-band (Supabase dashboard invite, or
+a seed script) with `role = 'admin'` and no `line_user_id`. No public
+"sign up as admin" flow exists or should exist.
+
+### Customer Dashboard — LINE Login only
+
+Customers sign in with **LINE Login and nothing else** — no email/
+password option on that dashboard. LINE Login (v2.1) is OpenID Connect–
+compliant — it issues a signed `id_token` carrying the user's stable LINE
+id (`sub`), display name, and profile picture. Supabase Auth accepts that
+directly via `supabase.auth.signInWithIdToken()` once LINE is registered
+as a custom OIDC provider on the project (LINE Developers Console → a
+"LINE Login" channel, Callback URL pointed at the Supabase Auth callback,
+Channel ID/Secret entered into Supabase's Auth provider settings).
 
 - `profiles.line_user_id` stores the `sub` claim and is how a returning
-  LINE user is matched back to their row; `full_name` / `avatar_url` are
+  customer is matched back to their row; `full_name` / `avatar_url` are
   seeded from the LINE profile on first login and editable after.
-- **No self-serve admin signup.** Every new LINE login defaults to
-  `role = 'customer'` — there's no signal in a LINE login that says
-  "this is Admin GO." Promoting an account to `role = 'admin'` is a
-  manual step (flip the row directly, or a one-time allowlist of known
-  LINE user IDs applied by a trigger) done outside the app.
+- Every LINE login defaults to `role = 'customer'` and always has
+  `line_user_id` set — the schema's `line_user_id_iff_customer` check
+  constraint enforces that a row is either a LINE customer or an admin
+  website account, never both.
 - If a customer's phone number changes but their LINE account doesn't,
   nothing breaks — identity is the LINE account, not a phone/email.
-- This also means: no password reset flow, no "forgot password" support
-  ticket to design for — LINE handles all of that on its side.
+- No password-reset flow or "forgot password" ticket to design for on
+  this side — LINE handles all of that.
