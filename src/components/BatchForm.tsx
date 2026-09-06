@@ -16,7 +16,7 @@ import { FileInput } from './FileInput'
 import { AlertDialog } from './AlertDialog'
 import { makeId } from '../lib/id'
 import { formatIDR } from '../lib/format'
-import type { SaveBatchInput } from '../store/useStore'
+import { useStore, type SaveBatchInput } from '../store/useStore'
 
 interface ItemRow {
   localId: string
@@ -81,6 +81,15 @@ export function BatchForm({
     initial ? toCustomerOrders(initial.items) : [emptyCustomerOrder()],
   )
   const [dialog, setDialog] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+
+  const batchBills = useStore((s) => s.batchBills)
+  const paidCustomerIds = new Set(
+    initial
+      ? batchBills
+          .filter((b) => b.batchId === initial.batch.id && b.status === 'Dibayar')
+          .map((b) => b.customerId)
+      : [],
+  )
 
   function updateOrder(localId: string, patch: Partial<CustomerOrderRow>) {
     setCustomerOrders((rows) => rows.map((r) => (r.localId === localId ? { ...r, ...patch } : r)))
@@ -251,13 +260,19 @@ export function BatchForm({
         </div>
 
         <div className="flex flex-col gap-4">
-          {customerOrders.map((order) => (
-            <div key={order.localId} className="rounded-lg border border-slate-200 p-4">
+          {customerOrders.map((order) => {
+            const isLocked = paidCustomerIds.has(order.customerId)
+            return (
+            <div
+              key={order.localId}
+              className={`rounded-lg border p-4 ${isLocked ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200'}`}
+            >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <select
-                  className="w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                  className="w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   value={order.customerId}
                   onChange={(e) => updateOrder(order.localId, { customerId: e.target.value })}
+                  disabled={isLocked}
                 >
                   <option value="">Pilih customer…</option>
                   {customers.map((c) => (
@@ -270,7 +285,15 @@ export function BatchForm({
                     </option>
                   ))}
                 </select>
-                {customerOrders.length > 1 && (
+                {isLocked && (
+                  <span
+                    className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
+                    title="Pembayaran customer ini sudah dikonfirmasi (Dibayar) — item terkunci agar tidak berubah diam-diam."
+                  >
+                    🔒 Dibayar — terkunci
+                  </span>
+                )}
+                {!isLocked && customerOrders.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeCustomerOrder(order.localId)}
@@ -290,13 +313,14 @@ export function BatchForm({
                     <div className="col-span-4">
                       <label className="mb-1 block text-xs text-slate-500">Tipe Barang</label>
                       <select
-                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                         value={it.tipeBarang}
                         onChange={(e) =>
                           updateItem(order.localId, it.localId, {
                             tipeBarang: e.target.value as TipeBarang,
                           })
                         }
+                        disabled={isLocked}
                       >
                         {TIPE_BARANG_OPTIONS.map((t) => (
                           <option key={t} value={t}>
@@ -310,13 +334,14 @@ export function BatchForm({
                         <>
                           <label className="mb-1 block text-xs text-slate-500">Tipe Kartu</label>
                           <select
-                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                             value={it.tipeKartu ?? ''}
                             onChange={(e) =>
                               updateItem(order.localId, it.localId, {
                                 tipeKartu: e.target.value as TipeKartu,
                               })
                             }
+                            disabled={isLocked}
                           >
                             <option value="">Pilih…</option>
                             {TIPE_KARTU_OPTIONS.map((t) => (
@@ -333,15 +358,16 @@ export function BatchForm({
                       <input
                         type="number"
                         min={0}
-                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
+                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                         value={it.priceIDR || ''}
                         onChange={(e) =>
                           updateItem(order.localId, it.localId, { priceIDR: Number(e.target.value) })
                         }
+                        disabled={isLocked}
                       />
                     </div>
                     <div className="col-span-1 flex justify-end">
-                      {order.items.length > 1 && (
+                      {!isLocked && order.items.length > 1 && (
                         <button
                           type="button"
                           onClick={() => removeItem(order.localId, it.localId)}
@@ -356,19 +382,24 @@ export function BatchForm({
               </div>
 
               <div className="mt-2 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => addItem(order.localId)}
-                  className="text-xs font-medium text-rose-600 hover:underline"
-                >
-                  + Add Item
-                </button>
+                {!isLocked ? (
+                  <button
+                    type="button"
+                    onClick={() => addItem(order.localId)}
+                    className="text-xs font-medium text-rose-600 hover:underline"
+                  >
+                    + Add Item
+                  </button>
+                ) : (
+                  <span />
+                )}
                 <span className="text-xs text-slate-400">
                   Subtotal: {formatIDR(order.items.reduce((sum, it) => sum + (it.priceIDR || 0), 0))}
                 </span>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       </div>
 

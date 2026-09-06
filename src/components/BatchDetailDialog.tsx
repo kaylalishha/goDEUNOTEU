@@ -4,7 +4,6 @@ import { formatDate, formatIDR } from '../lib/format'
 import { copyText } from '../lib/clipboard'
 import { buildTagihanTemplate } from '../lib/tagihanTemplate'
 import { ImageLightbox } from './ImageLightbox'
-import { BuktiTransferReview } from './BuktiTransferReview'
 import { StatusBadge } from './StatusBadge'
 
 export function BatchDetailDialog({
@@ -179,16 +178,37 @@ export function BatchDetailDialog({
                     {isOpen && (
                       <div className="border-t border-slate-200 bg-white px-4 py-3">
                         {bill && (
-                          <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-slate-600 sm:grid-cols-4">
+                          <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm text-slate-600 sm:grid-cols-4">
                             <div>
-                              <span className="block text-xs text-slate-400">payment at</span>
+                              <span className="block text-xs text-slate-400">payment date</span>
                               <span className="font-medium text-slate-800">
                                 {bill.paidAt ? formatDate(bill.paidAt) : 'None'}
                               </span>
                             </div>
                             <div>
-                              <span className="block text-xs text-slate-400">bank account</span>
-                              <span className="font-medium text-slate-800">{bill.bankAccount}</span>
+                              <span className="mb-0.5 block text-xs text-slate-400">payment proof</span>
+                              {bill.buktiTransfer ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setLightboxSrc(bill.buktiTransfer!.dataUrl)}
+                                  className="block h-12 w-12 overflow-hidden rounded-md border border-slate-200"
+                                  title="Klik untuk memperbesar"
+                                >
+                                  <img
+                                    src={bill.buktiTransfer.dataUrl}
+                                    alt="bukti transfer"
+                                    className="h-full w-full object-cover"
+                                  />
+                                </button>
+                              ) : (
+                                <span className="font-medium text-slate-400">—</span>
+                              )}
+                            </div>
+                            <div>
+                              <span className="block text-xs text-slate-400">payment method</span>
+                              <span className="font-medium text-slate-800">
+                                {bill.buktiTransfer?.paymentMethod ?? '—'}
+                              </span>
                             </div>
                             {bill.upnotesTotal > 0 && (
                               <div>
@@ -198,24 +218,28 @@ export function BatchDetailDialog({
                                 </span>
                               </div>
                             )}
-                            {bill.buktiTransfer && (
-                              <div>
-                                <span className="block text-xs text-slate-400">metode pembayaran</span>
-                                <span className="font-medium text-slate-800">
-                                  {bill.buktiTransfer.paymentMethod}
-                                </span>
-                              </div>
-                            )}
                           </div>
                         )}
 
-                        {bill?.status === 'Menunggu Konfirmasi' && bill.buktiTransfer && (
-                          <div className="mb-3">
-                            <BuktiTransferReview
-                              buktiTransfer={bill.buktiTransfer}
-                              onConfirm={() => confirmBatchBill(bill.id)}
-                              onReject={() => rejectBatchBill(bill.id)}
-                            />
+                        {bill?.status === 'Menunggu Konfirmasi' && (
+                          <div className="mb-3 flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                            <span className="text-xs font-medium text-amber-800">
+                              Menunggu konfirmasi pembayaran
+                            </span>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => confirmBatchBill(bill.id)}
+                                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => rejectBatchBill(bill.id)}
+                                className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
+                              >
+                                Reject
+                              </button>
+                            </div>
                           </div>
                         )}
 
