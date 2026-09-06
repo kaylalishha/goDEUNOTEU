@@ -44,12 +44,10 @@ export default function OrderRecap() {
 
   function handleCreate(input: SaveBatchInput) {
     saveBatch(input)
-    setFormOpen(false)
   }
 
   function handleEdit(input: SaveBatchInput) {
     saveBatch(input)
-    setEditingBatch(null)
   }
 
   return (

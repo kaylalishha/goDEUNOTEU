@@ -13,6 +13,7 @@ import {
   type TipeKartu,
 } from '../types'
 import { FileInput } from './FileInput'
+import { AlertDialog } from './AlertDialog'
 import { makeId } from '../lib/id'
 import { formatIDR } from '../lib/format'
 import type { SaveBatchInput } from '../store/useStore'
@@ -79,7 +80,7 @@ export function BatchForm({
   const [customerOrders, setCustomerOrders] = useState<CustomerOrderRow[]>(
     initial ? toCustomerOrders(initial.items) : [emptyCustomerOrder()],
   )
-  const [error, setError] = useState<string | null>(null)
+  const [dialog, setDialog] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
 
   function updateOrder(localId: string, patch: Partial<CustomerOrderRow>) {
     setCustomerOrders((rows) => rows.map((r) => (r.localId === localId ? { ...r, ...patch } : r)))
@@ -128,25 +129,25 @@ export function BatchForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!batchNumber.trim()) return setError('Batch Name wajib diisi.')
-    if (customerOrders.length === 0) return setError('Tambahkan minimal satu customer.')
+    const fail = (message: string) => setDialog({ tone: 'error', message })
+    if (!batchNumber.trim()) return fail('Batch Name wajib diisi.')
+    if (customerOrders.length === 0) return fail('Tambahkan minimal satu customer.')
     for (const order of customerOrders) {
-      if (!order.customerId) return setError('Setiap bagian customer wajib memilih customer.')
+      if (!order.customerId) return fail('Setiap bagian customer wajib memilih customer.')
       if (order.items.length === 0) {
-        return setError('Setiap customer wajib memiliki minimal satu item.')
+        return fail('Setiap customer wajib memiliki minimal satu item.')
       }
       for (const it of order.items) {
         if (it.tipeBarang === 'Kartu' && !it.tipeKartu) {
-          return setError('Tipe Kartu wajib dipilih untuk item bertipe Kartu.')
+          return fail('Tipe Kartu wajib dipilih untuk item bertipe Kartu.')
         }
-        if (it.priceIDR <= 0) return setError('Harga item (IDR) harus lebih dari 0.')
+        if (it.priceIDR <= 0) return fail('Harga item (IDR) harus lebih dari 0.')
       }
     }
     const ids = customerOrders.map((r) => r.customerId)
     if (new Set(ids).size !== ids.length) {
-      return setError('Satu customer hanya boleh muncul sekali per batch — gabungkan itemnya.')
+      return fail('Satu customer hanya boleh muncul sekali per batch — gabungkan itemnya.')
     }
-    setError(null)
 
     onSubmit({
       batchId: initial?.batch.id,
@@ -164,6 +165,11 @@ export function BatchForm({
           priceIDR: it.priceIDR,
         })),
       })),
+    })
+
+    setDialog({
+      tone: 'success',
+      message: initial ? 'Perubahan batch berhasil disimpan.' : 'Batch record baru berhasil disimpan.',
     })
   }
 
@@ -366,8 +372,6 @@ export function BatchForm({
         </div>
       </div>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-
       <div className="mt-1 flex justify-end gap-3 border-t border-slate-200 pt-4">
         <button
           type="button"
@@ -383,6 +387,19 @@ export function BatchForm({
           {initial ? 'Simpan Perubahan' : 'Simpan Batch'}
         </button>
       </div>
+
+      {dialog && (
+        <AlertDialog
+          tone={dialog.tone}
+          title={dialog.tone === 'success' ? 'Berhasil' : 'Gagal Menyimpan'}
+          message={dialog.message}
+          onClose={() => {
+            const wasSuccess = dialog.tone === 'success'
+            setDialog(null)
+            if (wasSuccess) onCancel()
+          }}
+        />
+      )}
     </form>
   )
 }
