@@ -62,23 +62,6 @@ export function BatchDetailDialog({
     })
   }
 
-  async function handleReqShare() {
-    const lines = [
-      `Tagihan!! Batch ${batch!.batchNumber}${batch!.boxNumber ? ` (Box ${batch!.boxNumber})` : ''}`,
-      ...customerIds.map((cid) => {
-        const bill = batchBills.find((b) => b.customerId === cid)
-        const total = items.filter((i) => i.customerId === cid).reduce((s, i) => s + i.priceIDR, 0)
-        return `@${getCustomerName(cid)} — ${formatIDR(total)}${bill ? ` (${bill.status})` : ''}`
-      }),
-      `Total batch: ${formatIDR(grandTotal)}`,
-    ]
-    const ok = await copyText(lines.join('\n'))
-    pushToast(
-      ok ? 'Ringkasan batch disalin ke clipboard.' : 'Gagal menyalin — salin manual dari kotak tagihan.',
-      ok ? 'success' : 'error',
-    )
-  }
-
   async function handleCopyTagihan() {
     const ok = await copyText(tagihanText)
     pushToast(ok ? 'Teks tagihan disalin.' : 'Gagal menyalin teks tagihan.', ok ? 'success' : 'error')
@@ -97,12 +80,12 @@ export function BatchDetailDialog({
             </h2>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleReqShare}
-              className="rounded-md border border-rose-200 px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+            <span
+              className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-600"
+              title="Order Type (diisi di form New Batch Record)"
             >
-              Req Share
-            </button>
+              {batch.orderType}
+            </span>
             <button
               onClick={onEdit}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
