@@ -227,7 +227,7 @@ export const useStore = create<StoreState>()(
           ...input,
           id: makeId('bbill'),
           total,
-          status: 'Belum Lunas',
+          status: 'Belum Dibayar',
           createdAt: new Date().toISOString(),
         }
         set((s) => ({ batchBills: [bill, ...s.batchBills] }))
@@ -251,18 +251,18 @@ export const useStore = create<StoreState>()(
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
-              ? { ...b, status: 'Lunas' as BatchBillStatus, paidAt: new Date().toISOString() }
+              ? { ...b, status: 'Dibayar' as BatchBillStatus, paidAt: new Date().toISOString() }
               : b,
           ),
         }))
-        get().pushToast('Pembayaran batch dikonfirmasi — status Lunas.', 'success')
+        get().pushToast('Pembayaran batch dikonfirmasi — status Dibayar.', 'success')
       },
 
       rejectBatchBill: (batchBillId) => {
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
-              ? { ...b, status: 'Belum Lunas' as BatchBillStatus, buktiTransfer: undefined, paidAt: undefined }
+              ? { ...b, status: 'Belum Dibayar' as BatchBillStatus, buktiTransfer: undefined, paidAt: undefined }
               : b,
           ),
         }))

@@ -24,6 +24,7 @@ export function BatchDetailDialog({
   const getCustomerName = useStore((s) => s.getCustomerName)
   const confirmBatchBill = useStore((s) => s.confirmBatchBill)
   const rejectBatchBill = useStore((s) => s.rejectBatchBill)
+  const simulateCustomerUploadBatch = useStore((s) => s.simulateCustomerUploadBatch)
   const updateBatchBillPaidAt = useStore((s) => s.updateBatchBillPaidAt)
   const pushToast = useStore((s) => s.pushToast)
 
@@ -32,7 +33,7 @@ export function BatchDetailDialog({
     new Set(
       Array.from(new Set(items.map((i) => i.customerId))).filter((customerId) => {
         const bill = batchBills.find((b) => b.customerId === customerId)
-        return !bill || bill.status !== 'Lunas'
+        return !bill || bill.status !== 'Dibayar'
       }),
     ),
   )
@@ -174,13 +175,7 @@ export function BatchDetailDialog({
                     >
                       <span className="font-semibold text-rose-600">{getCustomerName(customerId)}</span>
                       <span className="flex items-center gap-2">
-                        {bill ? (
-                          <StatusBadge status={bill.status} />
-                        ) : (
-                          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-500 ring-1 ring-inset ring-slate-200">
-                            Belum ada tagihan
-                          </span>
-                        )}
+                        <StatusBadge status={bill?.status ?? 'Belum Dibayar'} />
                         <span className="text-slate-400">{isOpen ? '︿' : '﹀'}</span>
                       </span>
                     </button>
@@ -252,6 +247,25 @@ export function BatchDetailDialog({
                               onReject={() => rejectBatchBill(bill.id)}
                             />
                           </div>
+                        )}
+
+                        {bill && bill.status === 'Belum Dibayar' && (
+                          <div className="mb-3 flex justify-end">
+                            <button
+                              onClick={() => simulateCustomerUploadBatch(bill.id)}
+                              className="text-xs text-slate-400 underline hover:text-slate-600"
+                              title="Demo helper: simulasikan customer meng-upload bukti transfer (belum ada Customer Dashboard)"
+                            >
+                              Simulate customer upload (demo)
+                            </button>
+                          </div>
+                        )}
+
+                        {!bill && (
+                          <p className="mb-3 text-xs text-slate-400">
+                            Belum ada tagihan batch untuk customer ini — buat di menu Batch Payments
+                            untuk mulai melacak pembayaran.
+                          </p>
                         )}
 
                         <div className="overflow-x-auto rounded-md border border-slate-100">

@@ -39,9 +39,9 @@ export const ORDER_TYPE_OPTIONS = ['ReqShare', 'Admin', 'Persod'] as const
 export type OrderType = (typeof ORDER_TYPE_OPTIONS)[number]
 
 export const BATCH_BILL_STATUSES = [
-  'Belum Lunas',
+  'Belum Dibayar',
   'Menunggu Konfirmasi',
-  'Lunas',
+  'Dibayar',
 ] as const
 export type BatchBillStatus = (typeof BATCH_BILL_STATUSES)[number]
 

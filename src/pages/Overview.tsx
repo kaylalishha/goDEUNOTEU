@@ -49,9 +49,9 @@ export default function Overview() {
 
   const batchesMissingPhoto = batches.filter((b) => !b.photoDataUrl).length
 
-  const bbBelumLunas = batchBills.filter((b) => b.status === 'Belum Lunas').length
+  const bbBelumDibayar = batchBills.filter((b) => b.status === 'Belum Dibayar').length
   const bbMenunggu = batchBills.filter((b) => b.status === 'Menunggu Konfirmasi').length
-  const bbLunas = batchBills.filter((b) => b.status === 'Lunas').length
+  const bbDibayar = batchBills.filter((b) => b.status === 'Dibayar').length
 
   const overdueTax = taxBills.filter(
     (t) => t.status !== 'Lunas' && daysRemaining(t.deadline) < 0,
@@ -116,13 +116,13 @@ export default function Overview() {
           question="Has this customer paid their batch bill, and has their bukti transfer been confirmed?"
           to="/batch-payments"
         >
-          <Stat label="Belum Lunas" value={bbBelumLunas} tone={bbBelumLunas > 0 ? 'danger' : undefined} />
+          <Stat label="Belum Dibayar" value={bbBelumDibayar} tone={bbBelumDibayar > 0 ? 'danger' : undefined} />
           <Stat
             label="Menunggu Konfirmasi"
             value={bbMenunggu}
             tone={bbMenunggu > 0 ? 'warning' : undefined}
           />
-          <Stat label="Lunas" value={bbLunas} />
+          <Stat label="Dibayar" value={bbDibayar} />
         </Card>
 
         <Card

@@ -172,7 +172,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 5000,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 96000 + 180000 + 5000,
-    status: 'Lunas',
+    status: 'Dibayar',
     createdAt: daysAgoIso(10),
     paidAt: daysAgoIso(9),
     buktiTransfer: {
@@ -207,7 +207,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 252000 + 108000,
-    status: 'Belum Lunas',
+    status: 'Belum Dibayar',
     createdAt: daysAgoIso(9),
   },
 ]

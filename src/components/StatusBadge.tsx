@@ -6,9 +6,10 @@ const TONE_CLASSES: Record<string, string> = {
 }
 
 const STATUS_TONE: Record<string, keyof typeof TONE_CLASSES> = {
-  'Belum Lunas': 'danger',
+  'Belum Dibayar': 'danger',
   'Belum Bayar': 'danger',
   'Menunggu Konfirmasi': 'warning',
+  Dibayar: 'success',
   Lunas: 'success',
 }
 

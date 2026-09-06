@@ -135,7 +135,7 @@ export default function BatchPayments() {
                 </div>
               )}
 
-              {bill.status === 'Belum Lunas' && (
+              {bill.status === 'Belum Dibayar' && (
                 <div className="mt-4 flex justify-end">
                   <button
                     onClick={() => simulateCustomerUploadBatch(bill.id)}
