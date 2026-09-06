@@ -20,6 +20,7 @@ export function BuktiTransferReview({
       <div className="flex-1 text-xs text-amber-800">
         <p className="font-medium">{buktiTransfer.fileName}</p>
         <p className="text-amber-600">Diunggah {formatDateTime(buktiTransfer.uploadedAt)}</p>
+        <p className="text-amber-600">Metode: {buktiTransfer.paymentMethod}</p>
       </div>
       <div className="flex gap-2">
         <button

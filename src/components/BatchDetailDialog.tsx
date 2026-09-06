@@ -25,7 +25,6 @@ export function BatchDetailDialog({
   const confirmBatchBill = useStore((s) => s.confirmBatchBill)
   const rejectBatchBill = useStore((s) => s.rejectBatchBill)
   const simulateCustomerUploadBatch = useStore((s) => s.simulateCustomerUploadBatch)
-  const updateBatchBillPaidAt = useStore((s) => s.updateBatchBillPaidAt)
   const pushToast = useStore((s) => s.pushToast)
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
@@ -37,9 +36,6 @@ export function BatchDetailDialog({
       }),
     ),
   )
-  const [editingDateFor, setEditingDateFor] = useState<string | null>(null)
-  const [dateDraft, setDateDraft] = useState('')
-
   if (!batch) return null
 
   const customerIds = Array.from(new Set(items.map((i) => i.customerId)))
@@ -182,62 +178,36 @@ export function BatchDetailDialog({
 
                     {isOpen && (
                       <div className="border-t border-slate-200 bg-white px-4 py-3">
-                        <div className="mb-3 flex items-center gap-2 text-sm text-slate-600">
-                          <span className="text-slate-400">payment at</span>
-                          <span>:</span>
-                          {editingDateFor === customerId ? (
-                            <>
-                              <input
-                                type="date"
-                                className="rounded-md border border-slate-300 px-2 py-1 text-sm"
-                                value={dateDraft}
-                                onChange={(e) => setDateDraft(e.target.value)}
-                              />
-                              <button
-                                type="button"
-                                className="text-xs font-medium text-emerald-600 hover:underline"
-                                onClick={() => {
-                                  if (!bill) return
-                                  updateBatchBillPaidAt(
-                                    bill.id,
-                                    dateDraft ? new Date(dateDraft).toISOString() : undefined,
-                                  )
-                                  setEditingDateFor(null)
-                                }}
-                              >
-                                Simpan
-                              </button>
-                              <button
-                                type="button"
-                                className="text-xs text-slate-400 hover:underline"
-                                onClick={() => setEditingDateFor(null)}
-                              >
-                                Batal
-                              </button>
-                            </>
-                          ) : (
-                            <>
+                        {bill && (
+                          <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-slate-600 sm:grid-cols-4">
+                            <div>
+                              <span className="block text-xs text-slate-400">payment at</span>
                               <span className="font-medium text-slate-800">
-                                {bill?.paidAt ? formatDate(bill.paidAt) : 'None'}
+                                {bill.paidAt ? formatDate(bill.paidAt) : 'None'}
                               </span>
-                              {bill && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingDateFor(customerId)
-                                    setDateDraft(
-                                      bill.paidAt ? bill.paidAt.slice(0, 10) : '',
-                                    )
-                                  }}
-                                  className="text-slate-400 hover:text-rose-600"
-                                  title="Edit tanggal pembayaran"
-                                >
-                                  ✎
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
+                            </div>
+                            <div>
+                              <span className="block text-xs text-slate-400">bank account</span>
+                              <span className="font-medium text-slate-800">{bill.bankAccount}</span>
+                            </div>
+                            {bill.upnotesTotal > 0 && (
+                              <div>
+                                <span className="block text-xs text-slate-400">upnotes</span>
+                                <span className="font-medium text-slate-800">
+                                  {formatIDR(bill.upnotesTotal)}
+                                </span>
+                              </div>
+                            )}
+                            {bill.buktiTransfer && (
+                              <div>
+                                <span className="block text-xs text-slate-400">metode pembayaran</span>
+                                <span className="font-medium text-slate-800">
+                                  {bill.buktiTransfer.paymentMethod}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
 
                         {bill?.status === 'Menunggu Konfirmasi' && bill.buktiTransfer && (
                           <div className="mb-3">
@@ -262,10 +232,7 @@ export function BatchDetailDialog({
                         )}
 
                         {!bill && (
-                          <p className="mb-3 text-xs text-slate-400">
-                            Belum ada tagihan batch untuk customer ini — buat di menu Batch Payments
-                            untuk mulai melacak pembayaran.
-                          </p>
+                          <p className="mb-3 text-xs text-slate-400">Tagihan belum tersedia untuk customer ini.</p>
                         )}
 
                         <div className="overflow-x-auto rounded-md border border-slate-100">

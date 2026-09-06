@@ -55,6 +55,19 @@ export type TaxBillStatus = (typeof TAX_BILL_STATUSES)[number]
 export const SERVICE_FEE_TYPES = ['flat', 'percentage'] as const
 export type ServiceFeeType = (typeof SERVICE_FEE_TYPES)[number]
 
+// Payment channel the customer picks on their end when paying a bill.
+// Customer Dashboard isn't built yet — Admin only ever sees this value,
+// synced read-only from whatever the customer selected.
+export const PAYMENT_METHOD_OPTIONS = [
+  'QRIS',
+  'Shopeepay',
+  'DANA',
+  'GoPay',
+  'BCA',
+  'SeaBank',
+] as const
+export type PaymentMethod = (typeof PAYMENT_METHOD_OPTIONS)[number]
+
 export const KARTU_FLAT_TAX_IDR = 5000
 export const TAX_PAYMENT_WINDOW_DAYS = 7
 
@@ -67,6 +80,7 @@ export interface BuktiTransfer {
   fileName: string
   dataUrl: string
   uploadedAt: string
+  paymentMethod: PaymentMethod
 }
 
 // FR-GO-A-001: one submitted recap form = one Batch = one order/invoice

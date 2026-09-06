@@ -4,8 +4,7 @@ import { Toaster } from './Toaster'
 
 const NAV_ITEMS = [
   { to: '/', label: 'Overview', exact: true },
-  { to: '/orders', label: 'A · Order Recap' },
-  { to: '/batch-payments', label: 'B · Batch Payments' },
+  { to: '/orders', label: 'A · Order Recap & Payments' },
   { to: '/tax-bills', label: 'C · Tax Bills (EMS)' },
   { to: '/estimator-config', label: 'D · Estimator Config' },
 ]

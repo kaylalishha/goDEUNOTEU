@@ -54,10 +54,11 @@ export default function OrderRecap() {
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">A · Standardized Order Recap Form</h2>
+          <h2 className="text-xl font-bold text-slate-900">A · Order Recap & Batch Payments</h2>
           <p className="text-sm text-slate-500">
-            Satu form = satu batch = satu invoice/order link. Foto dan status batch tidak lagi terpisah
-            di Google Sheets / LINE Notes — satu batch bisa berisi order dari beberapa customer.
+            Satu form = satu batch = satu invoice/order link — satu batch bisa berisi order dari
+            beberapa customer. Menyimpan batch otomatis menerbitkan tagihan per customer; buka detail
+            batch untuk melihat dan mengonfirmasi pembayaran tiap customer di tempat yang sama.
           </p>
         </div>
         <button

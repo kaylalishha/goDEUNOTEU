@@ -24,7 +24,9 @@ import type {
   TipeBarang,
   TipeKartu,
 } from '../types'
-import { TAX_PAYMENT_WINDOW_DAYS } from '../types'
+import { PAYMENT_METHOD_OPTIONS, TAX_PAYMENT_WINDOW_DAYS } from '../types'
+
+const DEFAULT_BANK_ACCOUNT = 'BCA 1234567890 a.n. Admin GO Aikatsu'
 
 interface Toast {
   id: string
@@ -70,21 +72,13 @@ interface StoreState {
   pushToast: (message: string, tone?: Toast['tone']) => void
   dismissToast: (id: string) => void
 
-  // Feature A — one submitted form = one Batch, containing per-customer items
+  // Feature A — one submitted form = one Batch, containing per-customer items.
+  // Saving a batch also auto-bills every customer in it (was Feature B).
   saveBatch: (input: SaveBatchInput) => void
   setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
-
-  // Feature B
-  createBatchBill: (
-    input: Omit<
-      BatchBill,
-      'id' | 'total' | 'status' | 'createdAt' | 'buktiTransfer' | 'paidAt'
-    >,
-  ) => void
   simulateCustomerUploadBatch: (batchBillId: string) => void
   confirmBatchBill: (batchBillId: string) => void
   rejectBatchBill: (batchBillId: string) => void
-  updateBatchBillPaidAt: (batchBillId: string, paidAt: string | undefined) => void
 
   // Feature C
   publishTaxBills: (
@@ -101,6 +95,8 @@ interface StoreState {
 }
 
 function attachDemoBukti(): BuktiTransfer {
+  const paymentMethod =
+    PAYMENT_METHOD_OPTIONS[Math.floor(Math.random() * PAYMENT_METHOD_OPTIONS.length)]
   return {
     fileName: `bukti_${Date.now()}.png`,
     dataUrl:
@@ -109,25 +105,61 @@ function attachDemoBukti(): BuktiTransfer {
         `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="#f1f5f9"/><text x="160" y="105" font-family="monospace" font-size="13" text-anchor="middle" fill="#334155">bukti transfer (simulasi)</text></svg>`,
       ),
     uploadedAt: new Date().toISOString(),
+    paymentMethod,
   }
 }
 
-function recomputeBillTotals(items: Item[], batchBills: BatchBill[]): BatchBill[] {
-  const itemIds = new Set(items.map((i) => i.id))
-  return batchBills.map((bill) => {
-    const stillPresent = bill.itemIds.filter((id) => itemIds.has(id))
-    const itemTotal = stillPresent.reduce((sum, id) => {
-      const it = items.find((i) => i.id === id)
-      return sum + (it?.priceIDR ?? 0)
-    }, 0)
-    if (
-      stillPresent.length === bill.itemIds.length &&
-      itemTotal + bill.upnotesTotal === bill.total
-    ) {
-      return bill
+// Auto-billing: every customer present in a batch gets (or keeps) exactly
+// one BatchBill for that batch, always in sync with their current items.
+// Replaces the old separate "Create Batch Bill" step (Feature B).
+function syncBatchBillsForBatch(
+  batchId: string,
+  batchNumber: string,
+  items: Item[],
+  existingBills: BatchBill[],
+  now: string,
+): { batchBills: BatchBill[]; newlyBilled: number } {
+  const otherBatchBills = existingBills.filter((b) => b.batchId !== batchId)
+  const existingForBatch = existingBills.filter((b) => b.batchId === batchId)
+  const existingByCustomer = new Map(existingForBatch.map((b) => [b.customerId, b]))
+
+  const customerIdsInBatch = Array.from(new Set(items.map((i) => i.customerId)))
+  let newlyBilled = 0
+
+  const syncedForBatch: BatchBill[] = customerIdsInBatch.map((customerId) => {
+    const customerItems = items.filter((i) => i.customerId === customerId)
+    const customerItemIds = customerItems.map((i) => i.id)
+    const itemTotal = customerItems.reduce((sum, i) => sum + i.priceIDR, 0)
+    const existing = existingByCustomer.get(customerId)
+    existingByCustomer.delete(customerId)
+
+    if (existing) {
+      return { ...existing, itemIds: customerItemIds, total: itemTotal + existing.upnotesTotal }
     }
-    return { ...bill, itemIds: stillPresent, total: itemTotal + bill.upnotesTotal }
+    newlyBilled += 1
+    return {
+      id: makeId('bbill'),
+      batchId,
+      batchNumber,
+      customerId,
+      itemIds: customerItemIds,
+      upnotesTotal: 0,
+      bankAccount: DEFAULT_BANK_ACCOUNT,
+      total: itemTotal,
+      status: 'Belum Dibayar',
+      createdAt: now,
+    }
   })
+
+  // Customers who were removed from the batch (edit) keep their bill record
+  // but it no longer references any item.
+  const orphaned = Array.from(existingByCustomer.values()).map((b) => ({
+    ...b,
+    itemIds: [],
+    total: b.upnotesTotal,
+  }))
+
+  return { batchBills: [...otherBatchBills, ...syncedForBatch, ...orphaned], newlyBilled }
 }
 
 export const useStore = create<StoreState>()(
@@ -158,6 +190,7 @@ export const useStore = create<StoreState>()(
         const now = new Date().toISOString()
         const isEdit = Boolean(input.batchId)
         const batchId = input.batchId ?? makeId('batch')
+        let newlyBilled = 0
 
         set((s) => {
           const batch: Batch = {
@@ -199,13 +232,22 @@ export const useStore = create<StoreState>()(
             ...incomingItems,
           ]
 
-          const batchBills = recomputeBillTotals(items, s.batchBills)
+          const synced = syncBatchBillsForBatch(
+            batchId,
+            input.batchNumber,
+            incomingItems,
+            s.batchBills,
+            now,
+          )
+          newlyBilled = synced.newlyBilled
 
-          return { batches, items, batchBills }
+          return { batches, items, batchBills: synced.batchBills }
         })
 
         get().pushToast(
-          isEdit ? 'Batch record berhasil diperbarui.' : 'Batch record berhasil disimpan.',
+          isEdit
+            ? 'Batch record berhasil diperbarui.'
+            : `Batch record berhasil disimpan. ${newlyBilled} tagihan otomatis diterbitkan.`,
           'success',
         )
       },
@@ -217,24 +259,6 @@ export const useStore = create<StoreState>()(
             byId.has(it.id) ? { ...it, weightGrams: byId.get(it.id) } : it,
           ),
         }))
-      },
-
-      createBatchBill: (input) => {
-        const items = get().items.filter((it) => input.itemIds.includes(it.id))
-        const itemTotal = items.reduce((sum, it) => sum + it.priceIDR, 0)
-        const total = itemTotal + input.upnotesTotal
-        const bill: BatchBill = {
-          ...input,
-          id: makeId('bbill'),
-          total,
-          status: 'Belum Dibayar',
-          createdAt: new Date().toISOString(),
-        }
-        set((s) => ({ batchBills: [bill, ...s.batchBills] }))
-        get().pushToast(
-          `Tagihan batch ${input.batchNumber} untuk ${get().getCustomerName(input.customerId)} diterbitkan ke Customer Dashboard.`,
-          'success',
-        )
       },
 
       simulateCustomerUploadBatch: (batchBillId) => {
@@ -267,13 +291,6 @@ export const useStore = create<StoreState>()(
           ),
         }))
         get().pushToast('Bukti transfer ditolak — customer diminta upload ulang.', 'error')
-      },
-
-      updateBatchBillPaidAt: (batchBillId, paidAt) => {
-        set((s) => ({
-          batchBills: s.batchBills.map((b) => (b.id === batchBillId ? { ...b, paidAt } : b)),
-        }))
-        get().pushToast('Tanggal pembayaran diperbarui.', 'success')
       },
 
       publishTaxBills: (bills) => {

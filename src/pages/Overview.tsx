@@ -41,7 +41,6 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 
 export default function Overview() {
   const batches = useStore((s) => s.batches)
-  const items = useStore((s) => s.items)
   const batchBills = useStore((s) => s.batchBills)
   const taxBills = useStore((s) => s.taxBills)
   const estimatorConfig = useStore((s) => s.estimatorConfig)
@@ -75,7 +74,7 @@ export default function Overview() {
         key: b.id,
         label: `Bukti transfer menunggu konfirmasi — ${getCustomerName(b.customerId)} (${b.batchNumber})`,
         detail: formatIDR(b.total),
-        to: '/batch-payments',
+        to: '/orders',
       })),
     ...taxBills
       .filter((t) => t.status === 'Menunggu Konfirmasi')
@@ -98,24 +97,16 @@ export default function Overview() {
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Card
-          title="A · Order Recap"
-          question="Are all item details, photos, and upnotes for this batch recorded in one place?"
+          title="A · Order Recap & Payments"
+          question="Is the bill given to each customer, and has their payment been confirmed?"
           to="/orders"
         >
           <Stat label="Total batch" value={batches.length} />
-          <Stat label="Total item record" value={items.length} />
           <Stat
             label="Batch belum ada foto"
             value={batchesMissingPhoto}
             tone={batchesMissingPhoto > 0 ? 'warning' : undefined}
           />
-        </Card>
-
-        <Card
-          title="B · Batch Payments"
-          question="Has this customer paid their batch bill, and has their bukti transfer been confirmed?"
-          to="/batch-payments"
-        >
           <Stat label="Belum Dibayar" value={bbBelumDibayar} tone={bbBelumDibayar > 0 ? 'danger' : undefined} />
           <Stat
             label="Menunggu Konfirmasi"
