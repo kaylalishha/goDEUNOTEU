@@ -13,9 +13,8 @@ import {
   type TipeKartu,
 } from '../types'
 import { FileInput } from './FileInput'
-import { useStore } from '../store/useStore'
 import { makeId } from '../lib/id'
-import { formatIDR, formatJPY } from '../lib/format'
+import { formatIDR } from '../lib/format'
 import type { SaveBatchInput } from '../store/useStore'
 
 interface ItemRow {
@@ -23,7 +22,6 @@ interface ItemRow {
   id?: string
   tipeBarang: TipeBarang
   tipeKartu?: TipeKartu
-  priceJPY: number
   priceIDR: number
 }
 
@@ -34,7 +32,7 @@ interface CustomerOrderRow {
 }
 
 function emptyItemRow(): ItemRow {
-  return { localId: makeId('row'), tipeBarang: 'Kartu', priceJPY: 0, priceIDR: 0 }
+  return { localId: makeId('row'), tipeBarang: 'Kartu', priceIDR: 0 }
 }
 
 function emptyCustomerOrder(): CustomerOrderRow {
@@ -49,7 +47,6 @@ function toCustomerOrders(items: Item[]): CustomerOrderRow[] {
       id: it.id,
       tipeBarang: it.tipeBarang,
       tipeKartu: it.tipeKartu,
-      priceJPY: it.priceJPY,
       priceIDR: it.priceIDR,
     }
     byCustomer.set(it.customerId, [...(byCustomer.get(it.customerId) ?? []), row])
@@ -72,13 +69,10 @@ export function BatchForm({
   onSubmit: (input: SaveBatchInput) => void
   onCancel: () => void
 }) {
-  const exchangeRate = useStore((s) => s.estimatorConfig.exchangeRate)
-
   const [batchNumber, setBatchNumber] = useState(initial?.batch.batchNumber ?? '')
   const [boxNumber, setBoxNumber] = useState(initial?.batch.boxNumber ?? '')
-  const [orderType, setOrderType] = useState<OrderType>(initial?.batch.orderType ?? 'Group Order')
+  const [orderType, setOrderType] = useState<OrderType>(initial?.batch.orderType ?? 'ReqShare')
   const [photoDataUrl, setPhotoDataUrl] = useState(initial?.batch.photoDataUrl)
-  const [upnotesTotal, setUpnotesTotal] = useState(initial?.batch.upnotesTotal ?? 0)
   const [orderStatus, setOrderStatus] = useState<OrderStatus>(
     initial?.batch.orderStatus ?? 'Menunggu Pembayaran ke Seller',
   )
@@ -134,8 +128,7 @@ export function BatchForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!batchNumber.trim()) return setError('Batch number wajib diisi.')
-    if (!boxNumber.trim()) return setError('Box number wajib diisi.')
+    if (!batchNumber.trim()) return setError('Batch Name wajib diisi.')
     if (customerOrders.length === 0) return setError('Tambahkan minimal satu customer.')
     for (const order of customerOrders) {
       if (!order.customerId) return setError('Setiap bagian customer wajib memilih customer.')
@@ -146,7 +139,7 @@ export function BatchForm({
         if (it.tipeBarang === 'Kartu' && !it.tipeKartu) {
           return setError('Tipe Kartu wajib dipilih untuk item bertipe Kartu.')
         }
-        if (it.priceJPY <= 0) return setError('Harga item (JPY) harus lebih dari 0.')
+        if (it.priceIDR <= 0) return setError('Harga item (IDR) harus lebih dari 0.')
       }
     }
     const ids = customerOrders.map((r) => r.customerId)
@@ -158,10 +151,9 @@ export function BatchForm({
     onSubmit({
       batchId: initial?.batch.id,
       batchNumber,
-      boxNumber,
+      boxNumber: boxNumber.trim() || undefined,
       orderType,
       photoDataUrl,
-      upnotesTotal,
       orderStatus,
       customerOrders: customerOrders.map((order) => ({
         customerId: order.customerId,
@@ -169,7 +161,6 @@ export function BatchForm({
           id: it.id,
           tipeBarang: it.tipeBarang,
           tipeKartu: it.tipeBarang === 'Kartu' ? it.tipeKartu : undefined,
-          priceJPY: it.priceJPY,
           priceIDR: it.priceIDR,
         })),
       })),
@@ -184,7 +175,9 @@ export function BatchForm({
         </p>
         <div className="grid grid-cols-2 gap-4 rounded-lg border border-slate-200 p-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Batch Name / Number</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Batch Name / Number <span className="text-rose-500">*</span>
+            </label>
             <input
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
               value={batchNumber}
@@ -193,7 +186,9 @@ export function BatchForm({
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Box Number</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Box Number <span className="font-normal text-slate-400">(opsional — bisa diisi nanti)</span>
+            </label>
             <input
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
               value={boxNumber}
@@ -214,18 +209,6 @@ export function BatchForm({
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Total Upnotes Amount <span className="font-normal text-slate-400">(opsional)</span>
-            </label>
-            <input
-              type="number"
-              min={0}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
-              value={upnotesTotal || ''}
-              onChange={(e) => setUpnotesTotal(Number(e.target.value))}
-            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Order Status</label>
@@ -298,7 +281,7 @@ export function BatchForm({
                     key={it.localId}
                     className="grid grid-cols-12 items-end gap-2 rounded-md bg-slate-50 p-2"
                   >
-                    <div className="col-span-3">
+                    <div className="col-span-4">
                       <label className="mb-1 block text-xs text-slate-500">Tipe Barang</label>
                       <select
                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
@@ -316,7 +299,7 @@ export function BatchForm({
                         ))}
                       </select>
                     </div>
-                    <div className="col-span-3">
+                    <div className="col-span-4">
                       {it.tipeBarang === 'Kartu' && (
                         <>
                           <label className="mb-1 block text-xs text-slate-500">Tipe Kartu</label>
@@ -338,22 +321,6 @@ export function BatchForm({
                           </select>
                         </>
                       )}
-                    </div>
-                    <div className="col-span-2">
-                      <label className="mb-1 block text-xs text-slate-500">Harga (JPY)</label>
-                      <input
-                        type="number"
-                        min={0}
-                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                        value={it.priceJPY || ''}
-                        onChange={(e) => {
-                          const jpy = Number(e.target.value)
-                          updateItem(order.localId, it.localId, {
-                            priceJPY: jpy,
-                            priceIDR: Math.round(jpy * exchangeRate),
-                          })
-                        }}
-                      />
                     </div>
                     <div className="col-span-3">
                       <label className="mb-1 block text-xs text-slate-500">Harga (IDR)</label>
@@ -391,9 +358,7 @@ export function BatchForm({
                   + Add Item
                 </button>
                 <span className="text-xs text-slate-400">
-                  Subtotal:{' '}
-                  {formatIDR(order.items.reduce((sum, it) => sum + (it.priceIDR || 0), 0))} ·{' '}
-                  {formatJPY(order.items.reduce((sum, it) => sum + (it.priceJPY || 0), 0))}
+                  Subtotal: {formatIDR(order.items.reduce((sum, it) => sum + (it.priceIDR || 0), 0))}
                 </span>
               </div>
             </div>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import type { Batch, Customer, Item } from '../types'
-import { formatIDR, formatJPY } from '../lib/format'
+import { formatIDR } from '../lib/format'
 
 const DEFAULT_BANK_ACCOUNT = 'BCA 1234567890 a.n. Admin GO Aikatsu'
 
@@ -101,7 +101,7 @@ export function CreateBatchBillForm({
             <option value="">Pilih batch…</option>
             {batchOptionsForCustomer.map((b) => (
               <option key={b.id} value={b.id}>
-                {b.batchNumber} · Box {b.boxNumber}
+                {b.batchNumber}{b.boxNumber ? ` · Box ${b.boxNumber}` : ''}
               </option>
             ))}
           </select>
@@ -123,7 +123,7 @@ export function CreateBatchBillForm({
                 <li key={i.id} className="flex items-center justify-between py-1.5">
                   <span className="text-slate-700">
                     {i.tipeBarang}
-                    {i.tipeKartu ? ` · ${i.tipeKartu}` : ''} ({formatJPY(i.priceJPY)})
+                    {i.tipeKartu ? ` · ${i.tipeKartu}` : ''}
                   </span>
                   <span className="text-slate-500">{formatIDR(i.priceIDR)}</span>
                 </li>
@@ -144,11 +144,10 @@ export function CreateBatchBillForm({
           value={upnotesTotal || ''}
           onChange={(e) => setUpnotesTotal(Number(e.target.value))}
         />
-        {selectedBatch && selectedBatch.upnotesTotal > 0 && (
-          <p className="mt-1 text-xs text-slate-400">
-            Referensi — total upnotes batch ini: {formatIDR(selectedBatch.upnotesTotal)}
-          </p>
-        )}
+        <p className="mt-1 text-xs text-slate-400">
+          Hitung manual dari subtotal item customer ini ({formatIDR(itemTotal)}) — upnotes tidak lagi
+          direkap di level batch.
+        </p>
       </div>
 
       <div>

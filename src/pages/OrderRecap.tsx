@@ -23,7 +23,7 @@ export default function OrderRecap() {
   const [viewingBatchId, setViewingBatchId] = useState<string | null>(null)
 
   const boxOptions = useMemo(
-    () => Array.from(new Set(batches.map((b) => b.boxNumber))),
+    () => Array.from(new Set(batches.map((b) => b.boxNumber).filter(Boolean))) as string[],
     [batches],
   )
   const batchOptions = useMemo(
@@ -58,8 +58,8 @@ export default function OrderRecap() {
         <div>
           <h2 className="text-xl font-bold text-slate-900">A · Standardized Order Recap Form</h2>
           <p className="text-sm text-slate-500">
-            Satu form = satu batch = satu invoice/order link. Foto, upnotes, dan status batch tidak lagi
-            terpisah di Google Sheets / LINE Notes — satu batch bisa berisi order dari beberapa customer.
+            Satu form = satu batch = satu invoice/order link. Foto dan status batch tidak lagi terpisah
+            di Google Sheets / LINE Notes — satu batch bisa berisi order dari beberapa customer.
           </p>
         </div>
         <button
@@ -143,7 +143,6 @@ export default function OrderRecap() {
                 <th className="px-4 py-3">Batch</th>
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Total Item</th>
-                <th className="px-4 py-3">Upnotes</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3"></th>
               </tr>
@@ -170,7 +169,7 @@ export default function OrderRecap() {
                         <span className="text-xs text-slate-400">no photo</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{batch.boxNumber}</td>
+                    <td className="px-4 py-3 text-slate-500">{batch.boxNumber ?? '—'}</td>
                     <td className="px-4 py-3 font-medium text-slate-900">{batch.batchNumber}</td>
                     <td className="px-4 py-3 text-slate-700">
                       {Array.from(customerIds)
@@ -178,9 +177,6 @@ export default function OrderRecap() {
                         .join(', ') || '—'}
                     </td>
                     <td className="px-4 py-3 text-slate-700">{formatIDR(total)}</td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {batch.upnotesTotal ? formatIDR(batch.upnotesTotal) : '—'}
-                    </td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                         {batch.orderStatus}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
-import { formatDate, formatIDR, formatJPY } from '../lib/format'
+import { formatDate, formatIDR } from '../lib/format'
 import { copyText } from '../lib/clipboard'
 import { buildTagihanTemplate } from '../lib/tagihanTemplate'
 import { ImageLightbox } from './ImageLightbox'
@@ -64,7 +64,7 @@ export function BatchDetailDialog({
 
   async function handleReqShare() {
     const lines = [
-      `Tagihan!! Batch ${batch!.batchNumber} (Box ${batch!.boxNumber})`,
+      `Tagihan!! Batch ${batch!.batchNumber}${batch!.boxNumber ? ` (Box ${batch!.boxNumber})` : ''}`,
       ...customerIds.map((cid) => {
         const bill = batchBills.find((b) => b.customerId === cid)
         const total = items.filter((i) => i.customerId === cid).reduce((s, i) => s + i.priceIDR, 0)
@@ -90,7 +90,10 @@ export function BatchDetailDialog({
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-rose-600">
-              {batch.batchNumber} <span className="text-slate-400">🗃️</span> ({batch.boxNumber})
+              {batch.batchNumber} <span className="text-slate-400">🗃️</span>{' '}
+              {batch.boxNumber ? `(${batch.boxNumber})` : (
+                <span className="text-sm font-normal text-slate-400">(Box belum ditentukan)</span>
+              )}
             </h2>
           </div>
           <div className="flex items-center gap-2">
@@ -163,10 +166,6 @@ export function BatchDetailDialog({
               <div className="flex justify-between">
                 <span>Order status</span>
                 <span className="font-medium text-slate-700">{batch.orderStatus}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Upnotes (batch)</span>
-                <span className="font-medium text-slate-700">{formatIDR(batch.upnotesTotal)}</span>
               </div>
               <div className="flex justify-between">
                 <span>Total item</span>
@@ -278,7 +277,6 @@ export function BatchDetailDialog({
                               <tr>
                                 <th className="px-3 py-2">Tipe Barang</th>
                                 <th className="px-3 py-2">Tipe Kartu</th>
-                                <th className="px-3 py-2">Harga (JPY)</th>
                                 <th className="px-3 py-2">Harga (IDR)</th>
                               </tr>
                             </thead>
@@ -287,7 +285,6 @@ export function BatchDetailDialog({
                                 <tr key={it.id}>
                                   <td className="px-3 py-2 text-slate-700">{it.tipeBarang}</td>
                                   <td className="px-3 py-2 text-slate-500">{it.tipeKartu ?? '—'}</td>
-                                  <td className="px-3 py-2 text-slate-700">{formatJPY(it.priceJPY)}</td>
                                   <td className="px-3 py-2 text-slate-700">{formatIDR(it.priceIDR)}</td>
                                 </tr>
                               ))}

@@ -36,7 +36,6 @@ export interface CustomerOrderItemInput {
   id?: string
   tipeBarang: TipeBarang
   tipeKartu?: TipeKartu
-  priceJPY: number
   priceIDR: number
 }
 
@@ -48,10 +47,9 @@ export interface CustomerOrderInput {
 export interface SaveBatchInput {
   batchId?: string
   batchNumber: string
-  boxNumber: string
+  boxNumber?: string
   orderType: OrderType
   photoDataUrl?: string
-  upnotesTotal: number
   orderStatus: OrderStatus
   customerOrders: CustomerOrderInput[]
 }
@@ -165,10 +163,9 @@ export const useStore = create<StoreState>()(
           const batch: Batch = {
             id: batchId,
             batchNumber: input.batchNumber,
-            boxNumber: input.boxNumber,
+            boxNumber: input.boxNumber?.trim() || undefined,
             orderType: input.orderType,
             photoDataUrl: input.photoDataUrl,
-            upnotesTotal: input.upnotesTotal,
             orderStatus: input.orderStatus,
             createdAt: isEdit
               ? (s.batches.find((b) => b.id === batchId)?.createdAt ?? now)
@@ -186,7 +183,6 @@ export const useStore = create<StoreState>()(
               customerId: order.customerId,
               tipeBarang: it.tipeBarang,
               tipeKartu: it.tipeKartu,
-              priceJPY: it.priceJPY,
               priceIDR: it.priceIDR,
               weightGrams: it.id
                 ? s.items.find((i) => i.id === it.id)?.weightGrams

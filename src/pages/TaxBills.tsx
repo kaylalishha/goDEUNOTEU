@@ -46,7 +46,7 @@ export default function TaxBills() {
   const [statusFilter, setStatusFilter] = useState<TaxBillStatus | ''>('')
 
   const boxOptions = useMemo(
-    () => Array.from(new Set(batches.map((b) => b.boxNumber))),
+    () => Array.from(new Set(batches.map((b) => b.boxNumber).filter(Boolean))) as string[],
     [batches],
   )
 
