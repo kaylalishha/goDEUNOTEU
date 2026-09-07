@@ -40,7 +40,7 @@ export default function OrderRecap() {
     }
     return true
   })
-  const sorted = [...filtered].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  const sorted = [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
   function handleCreate(input: SaveBatchInput) {
     saveBatch(input)
@@ -201,7 +201,12 @@ export default function OrderRecap() {
       )}
 
       <p className="text-xs text-slate-400">
-        Data terakhir diperbarui: {sorted[0] ? formatDate(sorted[0].updatedAt) : '—'}
+        Data terakhir diperbarui:{' '}
+        {batches.length > 0
+          ? formatDate(
+              batches.reduce((latest, b) => (b.updatedAt > latest ? b.updatedAt : latest), batches[0].updatedAt),
+            )
+          : '—'}
       </p>
 
       {formOpen && (

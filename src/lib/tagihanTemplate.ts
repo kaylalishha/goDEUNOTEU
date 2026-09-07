@@ -1,28 +1,23 @@
 // Admin GO's real LINE broadcast template for a batch payment call-out.
-// Payment channels/terms are the business's fixed values; batch number,
-// order type, and the per-customer amount lines are filled in per batch.
+// Rather than listing every payment channel inline, each customer is
+// tagged by their LINE display name (token: ${dnLINE}) and pointed to the
+// web dashboard to check their bill and pay.
 export function buildTagihanTemplate(params: {
   batchNumber: string
   orderType: string
-  customerLines: string[]
+  customerNames: string[]
 }): string {
+  const mentionLines = params.customerNames.map((dnLINE) => `@${dnLINE}`)
+
   return [
     `${params.batchNumber} 🇯🇵  | ${params.orderType} - G`,
     '',
     '',
-    ...params.customerLines,
+    ...mentionLines,
     '',
     '',
-    '📁 QRIS ADA DI ALBUM / NOTE 📂',
-    'E-Wallet : 🍥',
-    '',
-    'Shopeepay - 081211891305 an D',
-    'Dana - 081211891305 an M',
-    'Gopay - 081211891305 an ML',
-    '',
-    'Bank : ✨',
-    'BCA - 7120646383 an ML',
-    'Sea Bank - 901917729051 an ML',
+    '📌 Cek tagihan & cara bayar kalian di website GO Aikatsu ya!',
+    '🔗 https://go-deunoteu.vercel.app',
     '',
     '',
     '❌ batas waktu pembayaran 1x6 jam, Jika melewati batas waktu payment akan dikenakan denda 3k/hari ❌',
@@ -30,7 +25,6 @@ export function buildTagihanTemplate(params: {
     'LINK REKAPAN JAJAN:',
     'https://docs.google.com/spreadsheets/d/1VucjJFJTfIiWvQg-qREAVNVWuCy0W8Gm7yzoh9he404/edit?usp=drivesdk',
     '',
-    '¡! Drop bukti payment ',
     '¡! Jika ada kendala bisa pc salah satu admin',
     '¡! Jangan hnr, bisa cari opslot tinggal komen aja',
   ].join('\n')

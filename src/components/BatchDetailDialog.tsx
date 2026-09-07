@@ -43,10 +43,7 @@ export function BatchDetailDialog({
   const tagihanText = buildTagihanTemplate({
     batchNumber: batch.batchNumber,
     orderType: batch.orderType,
-    customerLines: customerIds.map((cid) => {
-      const total = items.filter((i) => i.customerId === cid).reduce((s, i) => s + i.priceIDR, 0)
-      return `${getCustomerName(cid)} ${formatIDR(total)}`
-    }),
+    customerNames: customerIds.map((cid) => getCustomerName(cid)),
   })
 
   function toggle(customerId: string) {
@@ -72,7 +69,8 @@ export function BatchDetailDialog({
               {batch.batchNumber} <span className="text-slate-400">🗃️</span>{' '}
               {batch.boxNumber ? `(${batch.boxNumber})` : (
                 <span className="text-sm font-normal text-slate-400">(Box belum ditentukan)</span>
-              )}
+              )}{' '}
+              <span className="text-sm font-normal text-slate-400">· {formatDate(batch.createdAt)}</span>
             </h2>
           </div>
           <div className="flex items-center gap-2">

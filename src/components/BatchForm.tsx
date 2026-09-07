@@ -32,6 +32,20 @@ interface CustomerOrderRow {
   items: ItemRow[]
 }
 
+const BATCH_NUMBER_PREFIX = 'BATCH'
+const BOX_NUMBER_PREFIX = 'BOX'
+
+function extractNumber(prefixed: string | undefined, prefix: string): number | '' {
+  if (!prefixed) return ''
+  const match = prefixed.match(new RegExp(`^${prefix}-?(\\d+)$`, 'i'))
+  return match ? Number(match[1]) : ''
+}
+
+function formatWithPrefix(prefix: string, value: number | '', padLength: number): string | undefined {
+  if (value === '' || !Number.isInteger(value) || value <= 0) return undefined
+  return `${prefix}-${String(value).padStart(padLength, '0')}`
+}
+
 function emptyItemRow(): ItemRow {
   return { localId: makeId('row'), tipeBarang: 'Kartu', priceIDR: 0 }
 }
@@ -70,8 +84,12 @@ export function BatchForm({
   onSubmit: (input: SaveBatchInput) => void
   onCancel: () => void
 }) {
-  const [batchNumber, setBatchNumber] = useState(initial?.batch.batchNumber ?? '')
-  const [boxNumber, setBoxNumber] = useState(initial?.batch.boxNumber ?? '')
+  const [batchNumberValue, setBatchNumberValue] = useState<number | ''>(
+    extractNumber(initial?.batch.batchNumber, BATCH_NUMBER_PREFIX),
+  )
+  const [boxNumberValue, setBoxNumberValue] = useState<number | ''>(
+    extractNumber(initial?.batch.boxNumber, BOX_NUMBER_PREFIX),
+  )
   const [orderType, setOrderType] = useState<OrderType>(initial?.batch.orderType ?? 'ReqShare')
   const [photoDataUrl, setPhotoDataUrl] = useState(initial?.batch.photoDataUrl)
   const [orderStatus, setOrderStatus] = useState<OrderStatus>(
@@ -139,7 +157,9 @@ export function BatchForm({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     const fail = (message: string) => setDialog({ tone: 'error', message })
-    if (!batchNumber.trim()) return fail('Batch Name wajib diisi.')
+    if (batchNumberValue === '' || !Number.isInteger(batchNumberValue) || batchNumberValue <= 0) {
+      return fail('Batch Number wajib diisi dengan angka.')
+    }
     if (customerOrders.length === 0) return fail('Tambahkan minimal satu customer.')
     for (const order of customerOrders) {
       if (!order.customerId) return fail('Setiap bagian customer wajib memilih customer.')
@@ -160,8 +180,8 @@ export function BatchForm({
 
     onSubmit({
       batchId: initial?.batch.id,
-      batchNumber,
-      boxNumber: boxNumber.trim() || undefined,
+      batchNumber: formatWithPrefix(BATCH_NUMBER_PREFIX, batchNumberValue, 2)!,
+      boxNumber: formatWithPrefix(BOX_NUMBER_PREFIX, boxNumberValue, 3),
       orderType,
       photoDataUrl,
       orderStatus,
@@ -185,34 +205,61 @@ export function BatchForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
       <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          1 · Batch Information
-        </p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+            1 · Batch Information
+          </p>
+          <p className="text-xs text-slate-400">
+            <span className="text-rose-500">*</span> wajib diisi
+          </p>
+        </div>
         <div className="grid grid-cols-2 gap-4 rounded-lg border border-slate-200 p-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Batch Name / Number <span className="text-rose-500">*</span>
+              Batch Number <span className="text-rose-500">*</span>
             </label>
-            <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
-              value={batchNumber}
-              onChange={(e) => setBatchNumber(e.target.value)}
-              placeholder="BATCH-01"
-            />
+            <div className="flex items-stretch gap-2">
+              <span className="flex items-center whitespace-nowrap rounded-md border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-500">
+                {BATCH_NUMBER_PREFIX} -
+              </span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                value={batchNumberValue}
+                onChange={(e) =>
+                  setBatchNumberValue(e.target.value === '' ? '' : Math.trunc(Number(e.target.value)))
+                }
+                placeholder="01"
+              />
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
               Box Number <span className="font-normal text-slate-400">(opsional — bisa diisi nanti)</span>
             </label>
-            <input
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
-              value={boxNumber}
-              onChange={(e) => setBoxNumber(e.target.value)}
-              placeholder="BOX-001"
-            />
+            <div className="flex items-stretch gap-2">
+              <span className="flex items-center whitespace-nowrap rounded-md border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-500">
+                {BOX_NUMBER_PREFIX} -
+              </span>
+              <input
+                type="number"
+                min={1}
+                step={1}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                value={boxNumberValue}
+                onChange={(e) =>
+                  setBoxNumberValue(e.target.value === '' ? '' : Math.trunc(Number(e.target.value)))
+                }
+                placeholder="001"
+              />
+            </div>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Order Type</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Order Type <span className="text-rose-500">*</span>
+            </label>
             <select
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
               value={orderType}
@@ -226,7 +273,9 @@ export function BatchForm({
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Order Status</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
+              Order Status <span className="text-rose-500">*</span>
+            </label>
             <select
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
               value={orderStatus}
@@ -267,24 +316,29 @@ export function BatchForm({
               key={order.localId}
               className={`rounded-lg border p-4 ${isLocked ? 'border-emerald-200 bg-emerald-50/40' : 'border-slate-200'}`}
             >
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <select
-                  className="w-full max-w-xs rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                  value={order.customerId}
-                  onChange={(e) => updateOrder(order.localId, { customerId: e.target.value })}
-                  disabled={isLocked}
-                >
-                  <option value="">Pilih customer…</option>
-                  {customers.map((c) => (
-                    <option
-                      key={c.id}
-                      value={c.id}
-                      disabled={usedCustomerIds.has(c.id) && c.id !== order.customerId}
-                    >
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div className="w-full max-w-xs">
+                  <label className="mb-1 block text-xs text-slate-500">
+                    Customer <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    value={order.customerId}
+                    onChange={(e) => updateOrder(order.localId, { customerId: e.target.value })}
+                    disabled={isLocked}
+                  >
+                    <option value="">Pilih customer…</option>
+                    {customers.map((c) => (
+                      <option
+                        key={c.id}
+                        value={c.id}
+                        disabled={usedCustomerIds.has(c.id) && c.id !== order.customerId}
+                      >
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 {isLocked && (
                   <span
                     className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
@@ -311,7 +365,9 @@ export function BatchForm({
                     className="grid grid-cols-12 items-end gap-2 rounded-md bg-slate-50 p-2"
                   >
                     <div className="col-span-4">
-                      <label className="mb-1 block text-xs text-slate-500">Tipe Barang</label>
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Tipe Barang <span className="text-rose-500">*</span>
+                      </label>
                       <select
                         className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                         value={it.tipeBarang}
@@ -332,7 +388,9 @@ export function BatchForm({
                     <div className="col-span-4">
                       {it.tipeBarang === 'Kartu' && (
                         <>
-                          <label className="mb-1 block text-xs text-slate-500">Tipe Kartu</label>
+                          <label className="mb-1 block text-xs text-slate-500">
+                            Tipe Kartu <span className="text-rose-500">*</span>
+                          </label>
                           <select
                             className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                             value={it.tipeKartu ?? ''}
@@ -354,7 +412,9 @@ export function BatchForm({
                       )}
                     </div>
                     <div className="col-span-3">
-                      <label className="mb-1 block text-xs text-slate-500">Harga (IDR)</label>
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Harga (IDR) <span className="text-rose-500">*</span>
+                      </label>
                       <input
                         type="number"
                         min={0}
