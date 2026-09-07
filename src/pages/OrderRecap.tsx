@@ -143,6 +143,7 @@ export default function OrderRecap() {
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Total Item</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Created At</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -158,9 +159,9 @@ export default function OrderRecap() {
                     onClick={() => setViewingBatchId(batch.id)}
                   >
                     <td className="px-4 py-3">
-                      {batch.photoDataUrl ? (
+                      {batch.photoDataUrls[0] ? (
                         <img
-                          src={batch.photoDataUrl}
+                          src={batch.photoDataUrls[0]}
                           alt="batch"
                           className="h-10 w-10 rounded object-cover"
                         />
@@ -181,6 +182,7 @@ export default function OrderRecap() {
                         {batch.orderStatus}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-slate-500">{formatDate(batch.createdAt)}</td>
                     <td className="px-4 py-3 text-right">
                       <button
                         onClick={(e) => {

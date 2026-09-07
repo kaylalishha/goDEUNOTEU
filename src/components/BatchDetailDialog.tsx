@@ -3,6 +3,7 @@ import { useStore } from '../store/useStore'
 import { formatDate, formatIDR } from '../lib/format'
 import { copyText } from '../lib/clipboard'
 import { buildTagihanTemplate } from '../lib/tagihanTemplate'
+import { ImageCarousel } from './ImageCarousel'
 import { ImageLightbox } from './ImageLightbox'
 import { StatusBadge } from './StatusBadge'
 
@@ -102,24 +103,7 @@ export function BatchDetailDialog({
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Foto Produk
               </p>
-              {batch.photoDataUrl ? (
-                <button
-                  type="button"
-                  onClick={() => setLightboxSrc(batch.photoDataUrl!)}
-                  className="group relative block w-full overflow-hidden rounded-lg border border-slate-200"
-                  title="Klik untuk memperbesar"
-                >
-                  <img src={batch.photoDataUrl} alt="foto produk" className="aspect-square w-full object-cover" />
-                  <span className="absolute inset-0 flex items-center justify-center bg-slate-900/0 text-transparent transition group-hover:bg-slate-900/30 group-hover:text-white">
-                    <span className="text-xs font-medium">Perbesar</span>
-                  </span>
-                </button>
-              ) : (
-                <div className="flex aspect-square w-full flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 px-4 text-center text-xs text-slate-400">
-                  foto product
-                  <span className="mt-1">(yg biasa ada di notes line)</span>
-                </div>
-              )}
+              <ImageCarousel images={batch.photoDataUrls} onImageClick={setLightboxSrc} />
             </div>
 
             <div>
@@ -140,6 +124,10 @@ export function BatchDetailDialog({
             </div>
 
             <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
+              <div className="flex justify-between">
+                <span>Order ID (WH)</span>
+                <span className="font-medium text-slate-700">{batch.orderIdWH}</span>
+              </div>
               <div className="flex justify-between">
                 <span>Order status</span>
                 <span className="font-medium text-slate-700">{batch.orderStatus}</span>

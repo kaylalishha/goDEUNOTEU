@@ -89,8 +89,9 @@ export interface Batch {
   id: string
   batchNumber: string
   boxNumber?: string
+  orderIdWH: string
   orderType: OrderType
-  photoDataUrl?: string
+  photoDataUrls: string[]
   orderStatus: OrderStatus
   createdAt: string
   updatedAt: string

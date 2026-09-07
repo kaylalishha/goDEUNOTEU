@@ -46,7 +46,7 @@ export default function Overview() {
   const estimatorConfig = useStore((s) => s.estimatorConfig)
   const getCustomerName = useStore((s) => s.getCustomerName)
 
-  const batchesMissingPhoto = batches.filter((b) => !b.photoDataUrl).length
+  const batchesMissingPhoto = batches.filter((b) => b.photoDataUrls.length === 0).length
 
   const bbBelumDibayar = batchBills.filter((b) => b.status === 'Belum Dibayar').length
   const bbMenunggu = batchBills.filter((b) => b.status === 'Menunggu Konfirmasi').length

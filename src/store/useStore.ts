@@ -50,8 +50,9 @@ export interface SaveBatchInput {
   batchId?: string
   batchNumber: string
   boxNumber?: string
+  orderIdWH: string
   orderType: OrderType
-  photoDataUrl?: string
+  photoDataUrls: string[]
   orderStatus: OrderStatus
   customerOrders: CustomerOrderInput[]
 }
@@ -197,8 +198,9 @@ export const useStore = create<StoreState>()(
             id: batchId,
             batchNumber: input.batchNumber,
             boxNumber: input.boxNumber?.trim() || undefined,
+            orderIdWH: input.orderIdWH,
             orderType: input.orderType,
-            photoDataUrl: input.photoDataUrl,
+            photoDataUrls: input.photoDataUrls,
             orderStatus: input.orderStatus,
             createdAt: isEdit
               ? (s.batches.find((b) => b.id === batchId)?.createdAt ?? now)

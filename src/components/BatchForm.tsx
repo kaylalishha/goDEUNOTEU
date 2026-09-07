@@ -12,7 +12,7 @@ import {
   type TipeBarang,
   type TipeKartu,
 } from '../types'
-import { FileInput } from './FileInput'
+import { MultiImageInput } from './MultiImageInput'
 import { AlertDialog } from './AlertDialog'
 import { makeId } from '../lib/id'
 import { formatIDR } from '../lib/format'
@@ -90,8 +90,9 @@ export function BatchForm({
   const [boxNumberValue, setBoxNumberValue] = useState<number | ''>(
     extractNumber(initial?.batch.boxNumber, BOX_NUMBER_PREFIX),
   )
+  const [orderIdWH, setOrderIdWH] = useState(initial?.batch.orderIdWH ?? '')
   const [orderType, setOrderType] = useState<OrderType>(initial?.batch.orderType ?? 'ReqShare')
-  const [photoDataUrl, setPhotoDataUrl] = useState(initial?.batch.photoDataUrl)
+  const [photoDataUrls, setPhotoDataUrls] = useState<string[]>(initial?.batch.photoDataUrls ?? [])
   const [orderStatus, setOrderStatus] = useState<OrderStatus>(
     initial?.batch.orderStatus ?? 'Menunggu Pembayaran ke Seller',
   )
@@ -160,6 +161,7 @@ export function BatchForm({
     if (batchNumberValue === '' || !Number.isInteger(batchNumberValue) || batchNumberValue <= 0) {
       return fail('Batch Number wajib diisi dengan angka.')
     }
+    if (!orderIdWH.trim()) return fail('Order ID (WH) wajib diisi.')
     if (customerOrders.length === 0) return fail('Tambahkan minimal satu customer.')
     for (const order of customerOrders) {
       if (!order.customerId) return fail('Setiap bagian customer wajib memilih customer.')
@@ -182,8 +184,9 @@ export function BatchForm({
       batchId: initial?.batch.id,
       batchNumber: formatWithPrefix(BATCH_NUMBER_PREFIX, batchNumberValue, 2)!,
       boxNumber: formatWithPrefix(BOX_NUMBER_PREFIX, boxNumberValue, 3),
+      orderIdWH: orderIdWH.trim(),
       orderType,
-      photoDataUrl,
+      photoDataUrls,
       orderStatus,
       customerOrders: customerOrders.map((order) => ({
         customerId: order.customerId,
@@ -258,6 +261,17 @@ export function BatchForm({
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
+              Order ID (WH) <span className="text-rose-500">*</span>
+            </label>
+            <input
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+              value={orderIdWH}
+              onChange={(e) => setOrderIdWH(e.target.value)}
+              placeholder="e.g. WH-2026-0001"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">
               Order Type <span className="text-rose-500">*</span>
             </label>
             <select
@@ -289,7 +303,7 @@ export function BatchForm({
             </select>
           </div>
           <div className="col-span-2">
-            <FileInput label="Item Photo" value={photoDataUrl} onChange={setPhotoDataUrl} />
+            <MultiImageInput label="Foto Produk" values={photoDataUrls} onChange={setPhotoDataUrls} />
           </div>
         </div>
       </div>
