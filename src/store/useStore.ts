@@ -350,6 +350,24 @@ export const useStore = create<StoreState>()(
         get().pushToast('Konfigurasi Price Estimator disimpan dan langsung berlaku.', 'success')
       },
     }),
-    { name: 'go-aikatsu-admin-store-v2' },
+    {
+      name: 'go-aikatsu-admin-store-v2',
+      // v1 introduced orderIdWH and switched photoDataUrl (single) to
+      // photoDataUrls (array) on Batch. Browsers with data saved before
+      // that change need their persisted batches backfilled, or reads
+      // like batch.photoDataUrls[0] crash the app on load.
+      version: 1,
+      migrate: (persistedState) => {
+        const state = persistedState as { batches?: Array<Record<string, unknown>> }
+        if (state?.batches) {
+          state.batches = state.batches.map((b) => ({
+            ...b,
+            orderIdWH: b.orderIdWH ?? '',
+            photoDataUrls: b.photoDataUrls ?? (b.photoDataUrl ? [b.photoDataUrl] : []),
+          }))
+        }
+        return state
+      },
+    },
   ),
 )

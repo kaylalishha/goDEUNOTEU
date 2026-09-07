@@ -159,7 +159,7 @@ export default function OrderRecap() {
                     onClick={() => setViewingBatchId(batch.id)}
                   >
                     <td className="px-4 py-3">
-                      {batch.photoDataUrls[0] ? (
+                      {batch.photoDataUrls?.[0] ? (
                         <img
                           src={batch.photoDataUrls[0]}
                           alt="batch"

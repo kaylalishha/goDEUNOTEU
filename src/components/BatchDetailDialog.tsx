@@ -103,7 +103,7 @@ export function BatchDetailDialog({
               <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
                 Foto Produk
               </p>
-              <ImageCarousel images={batch.photoDataUrls} onImageClick={setLightboxSrc} />
+              <ImageCarousel images={batch.photoDataUrls ?? []} onImageClick={setLightboxSrc} />
             </div>
 
             <div>
@@ -126,7 +126,7 @@ export function BatchDetailDialog({
             <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
               <div className="flex justify-between">
                 <span>Order ID (WH)</span>
-                <span className="font-medium text-slate-700">{batch.orderIdWH}</span>
+                <span className="font-medium text-slate-700">{batch.orderIdWH || '—'}</span>
               </div>
               <div className="flex justify-between">
                 <span>Order status</span>
