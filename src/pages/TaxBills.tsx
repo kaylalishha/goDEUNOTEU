@@ -198,10 +198,7 @@ export default function TaxBills() {
             customers={customers}
             alreadyPublishedCustomerIds={alreadyPublishedCustomerIds}
             onSaveWeights={setItemWeights}
-            onPublish={(bills) => {
-              publishTaxBills(bills)
-              setFormOpen(false)
-            }}
+            onPublish={publishTaxBills}
             onCancel={() => setFormOpen(false)}
           />
         </Modal>

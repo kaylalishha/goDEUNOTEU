@@ -183,30 +183,40 @@ export function BatchForm({
       return fail('Satu customer hanya boleh muncul sekali per batch — gabungkan itemnya.')
     }
 
-    onSubmit({
-      batchId: initial?.batch.id,
-      batchNumber: formatWithPrefix(BATCH_NUMBER_PREFIX, batchNumberValue, 2)!,
-      boxNumber: formatWithPrefix(BOX_NUMBER_PREFIX, boxNumberValue, 3),
-      orderIdWH: orderIdWH.trim(),
-      orderType,
-      photoDataUrls,
-      orderStatus,
-      customerOrders: customerOrders.map((order) => ({
-        customerId: order.customerId,
-        items: order.items.map((it) => ({
-          id: it.id,
-          tipeBarang: it.tipeBarang as TipeBarang,
-          tipeKartu: it.tipeBarang === 'Kartu' ? it.tipeKartu : undefined,
-          priceIDR: it.priceIDR,
-          weightGrams: it.tipeBarang !== 'Kartu' ? it.weightGrams : undefined,
+    // onSubmit hands off to the store synchronously — if it throws for any
+    // reason (unexpected data, storage write failure, etc.) we must still
+    // surface a dialog rather than leaving the sheet open with no feedback.
+    try {
+      onSubmit({
+        batchId: initial?.batch.id,
+        batchNumber: formatWithPrefix(BATCH_NUMBER_PREFIX, batchNumberValue, 2)!,
+        boxNumber: formatWithPrefix(BOX_NUMBER_PREFIX, boxNumberValue, 3),
+        orderIdWH: orderIdWH.trim(),
+        orderType,
+        photoDataUrls,
+        orderStatus,
+        customerOrders: customerOrders.map((order) => ({
+          customerId: order.customerId,
+          items: order.items.map((it) => ({
+            id: it.id,
+            tipeBarang: it.tipeBarang as TipeBarang,
+            tipeKartu: it.tipeBarang === 'Kartu' ? it.tipeKartu : undefined,
+            priceIDR: it.priceIDR,
+            weightGrams: it.tipeBarang !== 'Kartu' ? it.weightGrams : undefined,
+          })),
         })),
-      })),
-    })
+      })
 
-    setDialog({
-      tone: 'success',
-      message: initial ? 'Perubahan batch berhasil disimpan.' : 'Batch record baru berhasil disimpan.',
-    })
+      setDialog({
+        tone: 'success',
+        message: initial ? 'Perubahan batch berhasil disimpan.' : 'Batch record baru berhasil disimpan.',
+      })
+    } catch (err) {
+      setDialog({
+        tone: 'error',
+        message: `Gagal menyimpan batch: ${err instanceof Error ? err.message : 'terjadi kesalahan tak terduga.'}`,
+      })
+    }
   }
 
   return (

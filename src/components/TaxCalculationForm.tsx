@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { Customer, Item, TaxBill } from '../types'
 import { calculateTaxShares, type TaxCalcItemInput } from '../lib/calc'
 import { formatIDR } from '../lib/format'
+import { AlertDialog } from './AlertDialog'
 
 export function TaxCalculationForm({
   boxOptions,
@@ -25,7 +26,7 @@ export function TaxCalculationForm({
   const [boxNumber, setBoxNumber] = useState('')
   const [totalTax, setTotalTax] = useState<number>(0)
   const [weights, setWeights] = useState<Record<string, number>>({})
-  const [error, setError] = useState<string | null>(null)
+  const [dialog, setDialog] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
 
   const boxItems = boxNumber ? itemsByBox(boxNumber) : []
   const alreadyPublished = boxNumber ? alreadyPublishedCustomerIds(boxNumber) : new Set<string>()
@@ -49,28 +50,44 @@ export function TaxCalculationForm({
   )
 
   function handlePublish() {
-    if (!boxNumber) return setError('Pilih box terlebih dahulu.')
-    if (totalTax <= 0) return setError('Total tax box harus lebih dari 0.')
+    const fail = (message: string) => setDialog({ tone: 'error', message })
+    if (!boxNumber) return fail('Pilih box terlebih dahulu.')
+    if (totalTax <= 0) return fail('Total tax box harus lebih dari 0.')
     if (nonKartuItems.some((i) => !(weights[i.id] ?? i.weightGrams))) {
-      return setError('Isi berat (gram) untuk semua item non-kartu di box ini.')
+      return fail('Isi berat (gram) untuk semua item non-kartu di box ini.')
     }
-    if (result.breakdown.length === 0) return setError('Tidak ada customer baru yang bisa dipublikasikan pada box ini.')
-    setError(null)
+    if (result.breakdown.length === 0) {
+      return fail('Tidak ada customer baru yang bisa dipublikasikan pada box ini.')
+    }
 
-    onSaveWeights(
-      nonKartuItems.map((i) => ({ itemId: i.id, weightGrams: weights[i.id] ?? i.weightGrams ?? 0 })),
-    )
-    onPublish(
-      result.breakdown.map((b) => ({
-        boxNumber,
-        customerId: b.customerId,
-        kartuCount: b.kartuCount,
-        kartuTax: b.kartuTax,
-        nonKartuWeightGrams: b.nonKartuWeightGrams,
-        nonKartuShare: b.nonKartuShare,
-        total: b.total,
-      })),
-    )
+    // onSaveWeights/onPublish hand off to the store synchronously — if
+    // either throws for any reason, still surface a dialog rather than
+    // leaving the sheet open with no feedback.
+    try {
+      onSaveWeights(
+        nonKartuItems.map((i) => ({ itemId: i.id, weightGrams: weights[i.id] ?? i.weightGrams ?? 0 })),
+      )
+      onPublish(
+        result.breakdown.map((b) => ({
+          boxNumber,
+          customerId: b.customerId,
+          kartuCount: b.kartuCount,
+          kartuTax: b.kartuTax,
+          nonKartuWeightGrams: b.nonKartuWeightGrams,
+          nonKartuShare: b.nonKartuShare,
+          total: b.total,
+        })),
+      )
+      setDialog({
+        tone: 'success',
+        message: `Tagihan pajak untuk ${result.breakdown.length} customer berhasil dipublikasikan.`,
+      })
+    } catch (err) {
+      setDialog({
+        tone: 'error',
+        message: `Gagal mempublikasikan tagihan pajak: ${err instanceof Error ? err.message : 'terjadi kesalahan tak terduga.'}`,
+      })
+    }
   }
 
   return (
@@ -171,8 +188,6 @@ export function TaxCalculationForm({
         </div>
       )}
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-
       <div className="mt-1 flex justify-end gap-3">
         <button
           type="button"
@@ -189,6 +204,19 @@ export function TaxCalculationForm({
           Publish Tax Bill
         </button>
       </div>
+
+      {dialog && (
+        <AlertDialog
+          tone={dialog.tone}
+          title={dialog.tone === 'success' ? 'Berhasil' : 'Gagal Mempublikasikan'}
+          message={dialog.message}
+          onClose={() => {
+            const wasSuccess = dialog.tone === 'success'
+            setDialog(null)
+            if (wasSuccess) onCancel()
+          }}
+        />
+      )}
     </div>
   )
 }
