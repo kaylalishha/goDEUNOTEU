@@ -71,6 +71,7 @@ export function TaxCalculationForm({
         result.breakdown.map((b) => ({
           boxNumber,
           customerId: b.customerId,
+          itemIds: eligibleItems.filter((i) => i.customerId === b.customerId).map((i) => i.id),
           kartuCount: b.kartuCount,
           kartuTax: b.kartuTax,
           nonKartuWeightGrams: b.nonKartuWeightGrams,

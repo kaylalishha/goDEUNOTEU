@@ -33,12 +33,6 @@ function daysAgoIso(days: number): string {
   return d.toISOString()
 }
 
-function daysFromNowIso(days: number): string {
-  const d = new Date()
-  d.setDate(d.getDate() + days)
-  return d.toISOString()
-}
-
 function hoursAgoIso(hours: number): string {
   const d = new Date()
   d.setHours(d.getHours() - hours)
@@ -506,19 +500,22 @@ export const seedTaxBills: TaxBill[] = [
     id: 'tbill_001',
     boxNumber: 'BOX-001',
     customerId: 'cust_aiko',
+    itemIds: ['item_001', 'item_002'],
     kartuCount: 2,
     kartuTax: 10000,
     nonKartuWeightGrams: 0,
     nonKartuShare: 0,
     total: 10000,
     publishedAt: daysAgoIso(6),
-    deadline: daysFromNowIso(1),
+    // Every batch under one box shares the same payment deadline.
+    deadline: daysAgoIso(2),
     status: 'Belum Bayar',
   },
   {
     id: 'tbill_002',
     boxNumber: 'BOX-001',
     customerId: 'cust_bunga',
+    itemIds: ['item_003'],
     kartuCount: 0,
     kartuTax: 0,
     nonKartuWeightGrams: 420,
@@ -532,6 +529,7 @@ export const seedTaxBills: TaxBill[] = [
     id: 'tbill_003',
     boxNumber: 'BOX-001',
     customerId: 'cust_citra',
+    itemIds: ['item_004', 'item_005'],
     kartuCount: 1,
     kartuTax: 5000,
     nonKartuWeightGrams: 310,

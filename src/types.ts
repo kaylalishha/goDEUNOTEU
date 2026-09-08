@@ -128,6 +128,7 @@ export interface TaxBill {
   id: string
   boxNumber: string
   customerId: string
+  itemIds: string[]
   kartuCount: number
   kartuTax: number
   nonKartuWeightGrams: number

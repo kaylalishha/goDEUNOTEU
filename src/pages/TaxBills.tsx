@@ -19,7 +19,7 @@ interface BoxGroup {
   bills: TaxBill[]
   total: number
   counts: Record<TaxBillStatus, number>
-  nearestDeadline?: string
+  boxDeadline?: string
   publishedAt: string
 }
 
@@ -64,10 +64,10 @@ export default function TaxBills() {
         },
         {} as Record<TaxBillStatus, number>,
       )
-      const unpaid = bills.filter((b) => b.status !== 'Lunas')
-      const nearestUnpaid = [...unpaid].sort(
-        (a, b) => daysRemaining(a.deadline) - daysRemaining(b.deadline),
-      )[0]
+      // Every batch under one box shares a single payment deadline, so
+      // there's no "nearest" to pick between customers — any bill's
+      // deadline represents the whole box.
+      const hasUnpaid = bills.some((b) => b.status !== 'Lunas')
       const publishedAt = bills.reduce(
         (latest, b) => (b.publishedAt > latest ? b.publishedAt : latest),
         bills[0].publishedAt,
@@ -77,7 +77,7 @@ export default function TaxBills() {
         bills,
         total: bills.reduce((sum, b) => sum + b.total, 0),
         counts,
-        nearestDeadline: nearestUnpaid?.deadline,
+        boxDeadline: hasUnpaid ? bills[0].deadline : undefined,
         publishedAt,
       }
     })
@@ -152,7 +152,7 @@ export default function TaxBills() {
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Published At</th>
-                <th className="px-4 py-3">Deadline Terdekat</th>
+                <th className="px-4 py-3">Deadline</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -179,8 +179,8 @@ export default function TaxBills() {
                   </td>
                   <td className="px-4 py-3 text-slate-500">{formatDate(group.publishedAt)}</td>
                   <td className="px-4 py-3">
-                    {group.nearestDeadline ? (
-                      <DeadlineBadge deadline={group.nearestDeadline} isPaid={false} />
+                    {group.boxDeadline ? (
+                      <DeadlineBadge deadline={group.boxDeadline} isPaid={false} />
                     ) : (
                       <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
                         Semua Lunas

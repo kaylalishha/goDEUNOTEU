@@ -325,19 +325,32 @@ export const useStore = create<StoreState>()(
       },
 
       publishTaxBills: (bills) => {
-        const now = new Date()
-        const deadline = new Date(now)
-        deadline.setDate(deadline.getDate() + TAX_PAYMENT_WINDOW_DAYS)
-        const newBills: TaxBill[] = bills.map((b) => ({
-          ...b,
-          id: makeId('tbill'),
-          publishedAt: now.toISOString(),
-          deadline: deadline.toISOString(),
-          status: 'Belum Bayar',
-        }))
-        set((s) => ({ taxBills: [...newBills, ...s.taxBills] }))
+        const nowIso = new Date().toISOString()
+        set((s) => {
+          const newBills: TaxBill[] = bills.map((b) => {
+            // Every batch under one box shares a single payment deadline —
+            // if this box was already published before, new customers
+            // added to it later inherit that same deadline rather than
+            // getting a fresh 7-day window from today.
+            const existingForBox = s.taxBills.find((t) => t.boxNumber === b.boxNumber)
+            let deadlineIso = existingForBox?.deadline
+            if (!deadlineIso) {
+              const d = new Date(nowIso)
+              d.setDate(d.getDate() + TAX_PAYMENT_WINDOW_DAYS)
+              deadlineIso = d.toISOString()
+            }
+            return {
+              ...b,
+              id: makeId('tbill'),
+              publishedAt: nowIso,
+              deadline: deadlineIso,
+              status: 'Belum Bayar',
+            }
+          })
+          return { taxBills: [...newBills, ...s.taxBills] }
+        })
         get().pushToast(
-          `Tagihan pajak box ${bills[0]?.boxNumber ?? ''} diterbitkan ke ${newBills.length} customer. Notifikasi terkirim.`,
+          `Tagihan pajak box ${bills[0]?.boxNumber ?? ''} diterbitkan ke ${bills.length} customer. Notifikasi terkirim.`,
           'success',
         )
       },
