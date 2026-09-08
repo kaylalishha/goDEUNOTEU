@@ -395,17 +395,27 @@ export const useStore = create<StoreState>()(
     {
       name: 'go-aikatsu-admin-store-v2',
       // v1 introduced orderIdWH and switched photoDataUrl (single) to
-      // photoDataUrls (array) on Batch. Browsers with data saved before
-      // that change need their persisted batches backfilled, or reads
-      // like batch.photoDataUrls[0] crash the app on load.
-      version: 1,
+      // photoDataUrls (array) on Batch. v2 added itemIds to TaxBill.
+      // Browsers with data saved before either change need their
+      // persisted records backfilled, or reads like batch.photoDataUrls[0]
+      // or taxBill.itemIds.map(...) crash the app on load.
+      version: 2,
       migrate: (persistedState) => {
-        const state = persistedState as { batches?: Array<Record<string, unknown>> }
+        const state = persistedState as {
+          batches?: Array<Record<string, unknown>>
+          taxBills?: Array<Record<string, unknown>>
+        }
         if (state?.batches) {
           state.batches = state.batches.map((b) => ({
             ...b,
             orderIdWH: b.orderIdWH ?? '',
             photoDataUrls: b.photoDataUrls ?? (b.photoDataUrl ? [b.photoDataUrl] : []),
+          }))
+        }
+        if (state?.taxBills) {
+          state.taxBills = state.taxBills.map((t) => ({
+            ...t,
+            itemIds: t.itemIds ?? [],
           }))
         }
         return state

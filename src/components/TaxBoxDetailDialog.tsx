@@ -94,7 +94,8 @@ export function TaxBoxDetailDialog({
           <div className="flex flex-col gap-3">
             {taxBills.map((t) => {
               const isOpen = expanded.has(t.id)
-              const billItems = t.itemIds
+              const itemIds = t.itemIds ?? []
+              const billItems = itemIds
                 .map((id) => allItems.find((i) => i.id === id))
                 .filter((i): i is NonNullable<typeof i> => Boolean(i))
               const batchIds = Array.from(new Set(billItems.map((i) => i.batchId)))
@@ -109,7 +110,7 @@ export function TaxBoxDetailDialog({
                     <span className="font-semibold text-rose-600">{getCustomerName(t.customerId)}</span>
                     <span className="flex items-center gap-3">
                       <span className="text-right text-xs text-slate-500">
-                        <span className="block">{t.itemIds.length} item</span>
+                        <span className="block">{itemIds.length} item</span>
                         <span className="font-semibold text-slate-800">{formatIDR(t.total)}</span>
                       </span>
                       <StatusBadge status={t.status} />
