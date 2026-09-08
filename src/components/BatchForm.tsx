@@ -71,9 +71,19 @@ export function BatchForm({
   onSubmit: (input: SaveBatchInput) => void
   onCancel: () => void
 }) {
-  const [batchNumberValue, setBatchNumberValue] = useState<number | ''>(
-    extractNumber(initial?.batch.batchNumber, BATCH_NUMBER_PREFIX),
-  )
+  const allBatches = useStore((s) => s.batches)
+
+  const [batchNumberValue, setBatchNumberValue] = useState<number | ''>(() => {
+    if (initial) return extractNumber(initial.batch.batchNumber, BATCH_NUMBER_PREFIX)
+    // Prefill a new batch's number as (latest existing batch number) + 1 —
+    // batch numbers are assigned sequentially, so this is the expected
+    // next value the admin would otherwise type in by hand.
+    const latest = allBatches.reduce((max, b) => {
+      const n = extractNumber(b.batchNumber, BATCH_NUMBER_PREFIX)
+      return typeof n === 'number' && n > max ? n : max
+    }, 0)
+    return latest + 1
+  })
   const [boxNumberValue, setBoxNumberValue] = useState<number | ''>(
     extractNumber(initial?.batch.boxNumber, BOX_NUMBER_PREFIX),
   )
