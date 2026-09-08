@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
 import { BatchForm } from '../components/BatchForm'
 import { BatchDetailDialog } from '../components/BatchDetailDialog'
+import { BulkSetBoxDialog } from '../components/BulkSetBoxDialog'
 import { formatDate, formatIDR } from '../lib/format'
 import type { Batch } from '../types'
 import { EmptyState } from '../components/EmptyState'
@@ -14,6 +15,7 @@ export default function OrderRecap() {
   const customers = useStore((s) => s.customers)
   const getCustomerName = useStore((s) => s.getCustomerName)
   const saveBatch = useStore((s) => s.saveBatch)
+  const bulkSetBoxNumber = useStore((s) => s.bulkSetBoxNumber)
 
   const [boxFilter, setBoxFilter] = useState('')
   const [batchFilter, setBatchFilter] = useState('')
@@ -21,6 +23,10 @@ export default function OrderRecap() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
   const [viewingBatchId, setViewingBatchId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
+  const [bulkBoxDialogOpen, setBulkBoxDialogOpen] = useState(false)
+  const selectAllRef = useRef<HTMLInputElement>(null)
 
   const boxOptions = useMemo(
     () => Array.from(new Set(batches.map((b) => b.boxNumber).filter(Boolean))) as string[],
@@ -42,12 +48,58 @@ export default function OrderRecap() {
   })
   const sorted = [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
+  const selectedInView = sorted.filter((b) => selectedIds.has(b.id)).length
+  const allInViewSelected = sorted.length > 0 && selectedInView === sorted.length
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectedInView > 0 && !allInViewSelected
+    }
+  }, [selectedInView, allInViewSelected])
+
   function handleCreate(input: SaveBatchInput) {
     saveBatch(input)
   }
 
   function handleEdit(input: SaveBatchInput) {
     saveBatch(input)
+  }
+
+  // Shift-click selects the whole visible range in one go — the intended
+  // workflow is checking a run of batches (eg. batch 1-200) that all
+  // belong to the same box, identified only after the fact.
+  function handleRowCheckboxClick(batchId: string, index: number, shiftKey: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (shiftKey && lastClickedIndex !== null) {
+        const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b)
+        for (let i = start; i <= end; i++) next.add(sorted[i].id)
+      } else if (next.has(batchId)) {
+        next.delete(batchId)
+      } else {
+        next.add(batchId)
+      }
+      return next
+    })
+    setLastClickedIndex(index)
+  }
+
+  function handleSelectAllToggle() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (allInViewSelected) {
+        sorted.forEach((b) => next.delete(b.id))
+      } else {
+        sorted.forEach((b) => next.add(b.id))
+      }
+      return next
+    })
+  }
+
+  function handleBulkBoxConfirm(boxNumber: string) {
+    bulkSetBoxNumber(Array.from(selectedIds), boxNumber)
+    setSelectedIds(new Set())
+    setBulkBoxDialogOpen(false)
   }
 
   return (
@@ -130,6 +182,28 @@ export default function OrderRecap() {
         <span className="ml-auto text-xs text-slate-400">{sorted.length} batch ditemukan</span>
       </div>
 
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <span className="text-sm font-medium text-rose-700">
+            {selectedIds.size} batch dipilih
+          </span>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setBulkBoxDialogOpen(true)}
+              className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-rose-700"
+            >
+              Set Box Number
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="text-xs font-medium text-rose-600 hover:underline"
+            >
+              Batalkan pilihan
+            </button>
+          </div>
+        </div>
+      )}
+
       {sorted.length === 0 ? (
         <EmptyState message="Belum ada batch record yang cocok dengan filter ini." />
       ) : (
@@ -137,6 +211,16 @@ export default function OrderRecap() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
+                <th className="w-10 px-4 py-3">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allInViewSelected}
+                    onChange={handleSelectAllToggle}
+                    aria-label="Pilih semua batch yang tampil"
+                    className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-400"
+                  />
+                </th>
                 <th className="px-4 py-3">Foto</th>
                 <th className="px-4 py-3">Box</th>
                 <th className="px-4 py-3">Batch</th>
@@ -148,16 +232,31 @@ export default function OrderRecap() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sorted.map((batch) => {
+              {sorted.map((batch, index) => {
                 const batchItems = items.filter((i) => i.batchId === batch.id)
                 const customerIds = new Set(batchItems.map((i) => i.customerId))
                 const total = batchItems.reduce((sum, i) => sum + i.priceIDR, 0)
                 return (
                   <tr
                     key={batch.id}
-                    className="cursor-pointer hover:bg-slate-50"
+                    className={`cursor-pointer hover:bg-slate-50 ${
+                      selectedIds.has(batch.id) ? 'bg-rose-50/60' : ''
+                    }`}
                     onClick={() => setViewingBatchId(batch.id)}
                   >
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(batch.id)}
+                        onChange={() => {}}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleRowCheckboxClick(batch.id, index, e.shiftKey)
+                        }}
+                        aria-label={`Pilih ${batch.batchNumber}`}
+                        className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-400"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       {batch.photoDataUrls?.[0] ? (
                         <img
@@ -242,6 +341,15 @@ export default function OrderRecap() {
               setViewingBatchId(null)
             }
           }}
+        />
+      )}
+
+      {bulkBoxDialogOpen && (
+        <BulkSetBoxDialog
+          count={selectedIds.size}
+          existingBoxOptions={boxOptions}
+          onConfirm={handleBulkBoxConfirm}
+          onCancel={() => setBulkBoxDialogOpen(false)}
         />
       )}
     </div>

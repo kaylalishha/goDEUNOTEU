@@ -16,6 +16,7 @@ import { MultiImageInput } from './MultiImageInput'
 import { AlertDialog } from './AlertDialog'
 import { makeId } from '../lib/id'
 import { formatIDR } from '../lib/format'
+import { BATCH_NUMBER_PREFIX, BOX_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
 import { useStore, type SaveBatchInput } from '../store/useStore'
 
 interface ItemRow {
@@ -30,20 +31,6 @@ interface CustomerOrderRow {
   localId: string
   customerId: string
   items: ItemRow[]
-}
-
-const BATCH_NUMBER_PREFIX = 'BATCH'
-const BOX_NUMBER_PREFIX = 'BOX'
-
-function extractNumber(prefixed: string | undefined, prefix: string): number | '' {
-  if (!prefixed) return ''
-  const match = prefixed.match(new RegExp(`^${prefix}-?(\\d+)$`, 'i'))
-  return match ? Number(match[1]) : ''
-}
-
-function formatWithPrefix(prefix: string, value: number | '', padLength: number): string | undefined {
-  if (value === '' || !Number.isInteger(value) || value <= 0) return undefined
-  return `${prefix}-${String(value).padStart(padLength, '0')}`
 }
 
 function emptyItemRow(): ItemRow {

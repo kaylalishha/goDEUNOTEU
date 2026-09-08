@@ -76,6 +76,9 @@ interface StoreState {
   // Feature A — one submitted form = one Batch, containing per-customer items.
   // Saving a batch also auto-bills every customer in it (was Feature B).
   saveBatch: (input: SaveBatchInput) => void
+  // Assigns one box number to many batches at once — the box is usually
+  // only known after a run of batches has already been recorded.
+  bulkSetBoxNumber: (batchIds: string[], boxNumber: string) => void
   setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
   simulateCustomerUploadBatch: (batchBillId: string) => void
   confirmBatchBill: (batchBillId: string) => void
@@ -252,6 +255,17 @@ export const useStore = create<StoreState>()(
             : `Batch record berhasil disimpan. ${newlyBilled} tagihan otomatis diterbitkan.`,
           'success',
         )
+      },
+
+      bulkSetBoxNumber: (batchIds, boxNumber) => {
+        const idSet = new Set(batchIds)
+        const now = new Date().toISOString()
+        set((s) => ({
+          batches: s.batches.map((b) =>
+            idSet.has(b.id) ? { ...b, boxNumber, updatedAt: now } : b,
+          ),
+        }))
+        get().pushToast(`Box number ${boxNumber} diterapkan ke ${batchIds.length} batch.`, 'success')
       },
 
       setItemWeights: (weights) => {
