@@ -80,6 +80,8 @@ interface StoreState {
   // Assigns one box number to many batches at once — the box is usually
   // only known after a run of batches has already been recorded.
   bulkSetBoxNumber: (batchIds: string[], boxNumber: string) => void
+  // Deletes one or many batch records along with their items and bills.
+  deleteBatches: (batchIds: string[]) => void
   setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
   simulateCustomerUploadBatch: (batchBillId: string) => void
   confirmBatchBill: (batchBillId: string) => void
@@ -266,6 +268,19 @@ export const useStore = create<StoreState>()(
           ),
         }))
         get().pushToast(`Box number ${boxNumber} diterapkan ke ${batchIds.length} batch.`, 'success')
+      },
+
+      deleteBatches: (batchIds) => {
+        const idSet = new Set(batchIds)
+        set((s) => ({
+          batches: s.batches.filter((b) => !idSet.has(b.id)),
+          items: s.items.filter((i) => !idSet.has(i.batchId)),
+          batchBills: s.batchBills.filter((b) => !idSet.has(b.batchId)),
+        }))
+        get().pushToast(
+          batchIds.length > 1 ? `${batchIds.length} batch record dihapus.` : 'Batch record dihapus.',
+          'success',
+        )
       },
 
       setItemWeights: (weights) => {

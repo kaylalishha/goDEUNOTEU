@@ -5,7 +5,7 @@ import { TaxCalculationForm } from '../components/TaxCalculationForm'
 import { TaxBoxDetailDialog } from '../components/TaxBoxDetailDialog'
 import { DeadlineBadge } from '../components/DeadlineBadge'
 import { EmptyState } from '../components/EmptyState'
-import { daysRemaining, formatIDR } from '../lib/format'
+import { daysRemaining, formatDate, formatIDR } from '../lib/format'
 import { TAX_BILL_STATUSES, type TaxBill, type TaxBillStatus } from '../types'
 
 const STATUS_PILL_TONE: Record<TaxBillStatus, string> = {
@@ -20,6 +20,7 @@ interface BoxGroup {
   total: number
   counts: Record<TaxBillStatus, number>
   nearestDeadline?: string
+  publishedAt: string
 }
 
 export default function TaxBills() {
@@ -67,12 +68,17 @@ export default function TaxBills() {
       const nearestUnpaid = [...unpaid].sort(
         (a, b) => daysRemaining(a.deadline) - daysRemaining(b.deadline),
       )[0]
+      const publishedAt = bills.reduce(
+        (latest, b) => (b.publishedAt > latest ? b.publishedAt : latest),
+        bills[0].publishedAt,
+      )
       return {
         boxNumber,
         bills,
         total: bills.reduce((sum, b) => sum + b.total, 0),
         counts,
         nearestDeadline: nearestUnpaid?.deadline,
+        publishedAt,
       }
     })
   }, [taxBills])
@@ -80,11 +86,7 @@ export default function TaxBills() {
   const filteredBoxes = statusFilter
     ? boxGroups.filter((g) => g.counts[statusFilter] > 0)
     : boxGroups
-  const sortedBoxes = [...filteredBoxes].sort((a, b) => {
-    if (!a.nearestDeadline) return 1
-    if (!b.nearestDeadline) return -1
-    return daysRemaining(a.nearestDeadline) - daysRemaining(b.nearestDeadline)
-  })
+  const sortedBoxes = [...filteredBoxes].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
 
   const counts = TAX_BILL_STATUSES.reduce<Record<string, number>>((acc, s) => {
     acc[s] = taxBills.filter((t) => t.status === s).length
@@ -149,6 +151,7 @@ export default function TaxBills() {
                 <th className="px-4 py-3">Total Pajak</th>
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Published At</th>
                 <th className="px-4 py-3">Deadline Terdekat</th>
               </tr>
             </thead>
@@ -174,6 +177,7 @@ export default function TaxBills() {
                       ))}
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-slate-500">{formatDate(group.publishedAt)}</td>
                   <td className="px-4 py-3">
                     {group.nearestDeadline ? (
                       <DeadlineBadge deadline={group.nearestDeadline} isPaid={false} />

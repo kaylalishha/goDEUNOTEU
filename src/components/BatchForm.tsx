@@ -14,6 +14,7 @@ import {
 } from '../types'
 import { MultiImageInput } from './MultiImageInput'
 import { AlertDialog } from './AlertDialog'
+import { ConfirmDialog } from './ConfirmDialog'
 import { makeId } from '../lib/id'
 import { formatIDR } from '../lib/format'
 import { BATCH_NUMBER_PREFIX, BOX_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
@@ -99,8 +100,10 @@ export function BatchForm({
     initial ? toCustomerOrders(initial.items) : [emptyCustomerOrder()],
   )
   const [dialog, setDialog] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const batchBills = useStore((s) => s.batchBills)
+  const deleteBatches = useStore((s) => s.deleteBatches)
   const paidCustomerIds = new Set(
     initial
       ? batchBills
@@ -108,6 +111,20 @@ export function BatchForm({
           .map((b) => b.customerId)
       : [],
   )
+  const batchHasPaidOrPendingBill = initial
+    ? batchBills.some(
+        (b) =>
+          b.batchId === initial.batch.id &&
+          (b.status === 'Dibayar' || b.status === 'Menunggu Konfirmasi'),
+      )
+    : false
+
+  function handleDeleteConfirm() {
+    if (!initial) return
+    deleteBatches([initial.batch.id])
+    setDeleteConfirmOpen(false)
+    onCancel()
+  }
 
   function updateOrder(localId: string, patch: Partial<CustomerOrderRow>) {
     setCustomerOrders((rows) => rows.map((r) => (r.localId === localId ? { ...r, ...patch } : r)))
@@ -516,20 +533,33 @@ export function BatchForm({
         </div>
       </div>
 
-      <div className="mt-1 flex justify-end gap-3 border-t border-slate-200 pt-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Batal
-        </button>
-        <button
-          type="submit"
-          className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
-        >
-          {initial ? 'Simpan Perubahan' : 'Simpan Batch'}
-        </button>
+      <div className="mt-1 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
+        {initial ? (
+          <button
+            type="button"
+            onClick={() => setDeleteConfirmOpen(true)}
+            className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
+          >
+            Hapus Batch
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+          >
+            {initial ? 'Simpan Perubahan' : 'Simpan Batch'}
+          </button>
+        </div>
       </div>
 
       {dialog && (
@@ -542,6 +572,20 @@ export function BatchForm({
             setDialog(null)
             if (wasSuccess) onCancel()
           }}
+        />
+      )}
+
+      {deleteConfirmOpen && initial && (
+        <ConfirmDialog
+          title={`Hapus ${initial.batch.batchNumber}?`}
+          message={
+            `Tindakan ini tidak bisa dibatalkan — semua item dan tagihan pada batch ini akan ikut terhapus.` +
+            (batchHasPaidOrPendingBill
+              ? ' Batch ini punya tagihan yang sudah dibayar/menunggu konfirmasi.'
+              : '')
+          }
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteConfirmOpen(false)}
         />
       )}
     </form>

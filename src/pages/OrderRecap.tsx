@@ -4,6 +4,7 @@ import { Modal } from '../components/Modal'
 import { BatchForm } from '../components/BatchForm'
 import { BatchDetailDialog } from '../components/BatchDetailDialog'
 import { BulkSetBoxDialog } from '../components/BulkSetBoxDialog'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { formatDate, formatIDR } from '../lib/format'
 import type { Batch } from '../types'
 import { EmptyState } from '../components/EmptyState'
@@ -12,10 +13,12 @@ import type { SaveBatchInput } from '../store/useStore'
 export default function OrderRecap() {
   const batches = useStore((s) => s.batches)
   const items = useStore((s) => s.items)
+  const batchBills = useStore((s) => s.batchBills)
   const customers = useStore((s) => s.customers)
   const getCustomerName = useStore((s) => s.getCustomerName)
   const saveBatch = useStore((s) => s.saveBatch)
   const bulkSetBoxNumber = useStore((s) => s.bulkSetBoxNumber)
+  const deleteBatches = useStore((s) => s.deleteBatches)
 
   const [boxFilter, setBoxFilter] = useState('')
   const [batchFilter, setBatchFilter] = useState('')
@@ -26,6 +29,7 @@ export default function OrderRecap() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   const [bulkBoxDialogOpen, setBulkBoxDialogOpen] = useState(false)
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   const boxOptions = useMemo(
@@ -101,6 +105,16 @@ export default function OrderRecap() {
     setSelectedIds(new Set())
     setBulkBoxDialogOpen(false)
   }
+
+  function handleBulkDeleteConfirm() {
+    deleteBatches(Array.from(selectedIds))
+    setSelectedIds(new Set())
+    setBulkDeleteConfirmOpen(false)
+  }
+
+  const selectedPaidBillCount = batchBills.filter(
+    (b) => selectedIds.has(b.batchId) && (b.status === 'Dibayar' || b.status === 'Menunggu Konfirmasi'),
+  ).length
 
   return (
     <div className="flex flex-col gap-6">
@@ -193,6 +207,12 @@ export default function OrderRecap() {
               className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-rose-700"
             >
               Set Box Number
+            </button>
+            <button
+              onClick={() => setBulkDeleteConfirmOpen(true)}
+              className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
+            >
+              Delete
             </button>
             <button
               onClick={() => setSelectedIds(new Set())}
@@ -350,6 +370,20 @@ export default function OrderRecap() {
           existingBoxOptions={boxOptions}
           onConfirm={handleBulkBoxConfirm}
           onCancel={() => setBulkBoxDialogOpen(false)}
+        />
+      )}
+
+      {bulkDeleteConfirmOpen && (
+        <ConfirmDialog
+          title={`Hapus ${selectedIds.size} Batch Record?`}
+          message={
+            `Tindakan ini tidak bisa dibatalkan — semua item dan tagihan pada batch yang dipilih akan ikut terhapus.` +
+            (selectedPaidBillCount > 0
+              ? ` ${selectedPaidBillCount} tagihan di antaranya sudah dibayar/menunggu konfirmasi.`
+              : '')
+          }
+          onConfirm={handleBulkDeleteConfirm}
+          onCancel={() => setBulkDeleteConfirmOpen(false)}
         />
       )}
     </div>
