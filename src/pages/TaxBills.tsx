@@ -2,32 +2,24 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
 import { TaxCalculationForm } from '../components/TaxCalculationForm'
-import { StatusBadge } from '../components/StatusBadge'
-import { BuktiTransferReview } from '../components/BuktiTransferReview'
+import { TaxBoxDetailDialog } from '../components/TaxBoxDetailDialog'
+import { DeadlineBadge } from '../components/DeadlineBadge'
 import { EmptyState } from '../components/EmptyState'
-import { daysRemaining, formatDate, formatIDR } from '../lib/format'
-import { TAX_BILL_STATUSES, type TaxBillStatus } from '../types'
+import { daysRemaining, formatIDR } from '../lib/format'
+import { TAX_BILL_STATUSES, type TaxBill, type TaxBillStatus } from '../types'
 
-function DeadlineBadge({ deadline, status }: { deadline: string; status: TaxBillStatus }) {
-  if (status === 'Lunas') {
-    return <span className="text-xs text-slate-400">Lunas {formatDate(deadline)}</span>
-  }
-  const remaining = daysRemaining(deadline)
-  if (remaining < 0) {
-    return (
-      <span className="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-700 ring-1 ring-inset ring-rose-200">
-        Overdue {Math.abs(remaining)} hari
-      </span>
-    )
-  }
-  if (remaining <= 2) {
-    return (
-      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 ring-1 ring-inset ring-amber-200">
-        {remaining} hari lagi
-      </span>
-    )
-  }
-  return <span className="text-xs text-slate-500">{remaining} hari lagi (deadline {formatDate(deadline)})</span>
+const STATUS_PILL_TONE: Record<TaxBillStatus, string> = {
+  'Belum Bayar': 'bg-rose-100 text-rose-700',
+  'Menunggu Konfirmasi': 'bg-amber-100 text-amber-800',
+  Lunas: 'bg-emerald-100 text-emerald-700',
+}
+
+interface BoxGroup {
+  boxNumber: string
+  bills: TaxBill[]
+  total: number
+  counts: Record<TaxBillStatus, number>
+  nearestDeadline?: string
 }
 
 export default function TaxBills() {
@@ -35,15 +27,12 @@ export default function TaxBills() {
   const batches = useStore((s) => s.batches)
   const items = useStore((s) => s.items)
   const taxBills = useStore((s) => s.taxBills)
-  const getCustomerName = useStore((s) => s.getCustomerName)
   const publishTaxBills = useStore((s) => s.publishTaxBills)
   const setItemWeights = useStore((s) => s.setItemWeights)
-  const confirmTaxBill = useStore((s) => s.confirmTaxBill)
-  const rejectTaxBill = useStore((s) => s.rejectTaxBill)
-  const simulateCustomerUploadTax = useStore((s) => s.simulateCustomerUploadTax)
 
   const [formOpen, setFormOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<TaxBillStatus | ''>('')
+  const [viewingBoxNumber, setViewingBoxNumber] = useState<string | null>(null)
 
   const boxOptions = useMemo(
     () => Array.from(new Set(batches.map((b) => b.boxNumber).filter(Boolean))) as string[],
@@ -59,8 +48,43 @@ export default function TaxBills() {
     return new Set(taxBills.filter((t) => t.boxNumber === boxNumber).map((t) => t.customerId))
   }
 
-  const filtered = statusFilter ? taxBills.filter((t) => t.status === statusFilter) : taxBills
-  const sorted = [...filtered].sort((a, b) => daysRemaining(a.deadline) - daysRemaining(b.deadline))
+  // Dashboard shows one row per box; clicking a box opens the per-customer
+  // breakdown of every tax bill published for that box.
+  const boxGroups: BoxGroup[] = useMemo(() => {
+    const map = new Map<string, TaxBill[]>()
+    for (const t of taxBills) {
+      map.set(t.boxNumber, [...(map.get(t.boxNumber) ?? []), t])
+    }
+    return Array.from(map.entries()).map(([boxNumber, bills]) => {
+      const counts = TAX_BILL_STATUSES.reduce(
+        (acc, s) => {
+          acc[s] = bills.filter((b) => b.status === s).length
+          return acc
+        },
+        {} as Record<TaxBillStatus, number>,
+      )
+      const unpaid = bills.filter((b) => b.status !== 'Lunas')
+      const nearestUnpaid = [...unpaid].sort(
+        (a, b) => daysRemaining(a.deadline) - daysRemaining(b.deadline),
+      )[0]
+      return {
+        boxNumber,
+        bills,
+        total: bills.reduce((sum, b) => sum + b.total, 0),
+        counts,
+        nearestDeadline: nearestUnpaid?.deadline,
+      }
+    })
+  }, [taxBills])
+
+  const filteredBoxes = statusFilter
+    ? boxGroups.filter((g) => g.counts[statusFilter] > 0)
+    : boxGroups
+  const sortedBoxes = [...filteredBoxes].sort((a, b) => {
+    if (!a.nearestDeadline) return 1
+    if (!b.nearestDeadline) return -1
+    return daysRemaining(a.nearestDeadline) - daysRemaining(b.nearestDeadline)
+  })
 
   const counts = TAX_BILL_STATUSES.reduce<Record<string, number>>((acc, s) => {
     acc[s] = taxBills.filter((t) => t.status === s).length
@@ -74,7 +98,8 @@ export default function TaxBills() {
         <div>
           <h2 className="text-xl font-bold text-slate-900">C · Tax Bill Management (Tagihan Pajak EMS)</h2>
           <p className="text-sm text-slate-500">
-            Hitung pembagian pajak per box, publikasikan ke customer, dan pantau deadline 7 hari.
+            Hitung pembagian pajak per box, publikasikan ke customer, dan pantau deadline 7 hari. Klik
+            sebuah box untuk melihat rincian tagihan tiap customer.
           </p>
         </div>
         <button
@@ -87,7 +112,7 @@ export default function TaxBills() {
 
       {overdueCount > 0 && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
-          {overdueCount} tagihan pajak sudah melewati deadline 7 hari dan masih Belum Bayar.
+          {overdueCount} tagihan pajak sudah melewati deadline 7 hari dan masih belum lunas.
         </div>
       )}
 
@@ -113,56 +138,49 @@ export default function TaxBills() {
         ))}
       </div>
 
-      {sorted.length === 0 ? (
-        <EmptyState message="Tidak ada tagihan pajak dengan status ini." />
+      {sortedBoxes.length === 0 ? (
+        <EmptyState message="Belum ada tagihan pajak yang dipublikasikan." />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-3">Box</th>
+                <th className="px-4 py-3">Total Pajak</th>
                 <th className="px-4 py-3">Customer</th>
-                <th className="px-4 py-3">Rincian</th>
-                <th className="px-4 py-3">Total</th>
-                <th className="px-4 py-3">Deadline</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Aksi</th>
+                <th className="px-4 py-3">Deadline Terdekat</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sorted.map((t) => (
-                <tr key={t.id} className="align-top hover:bg-slate-50">
-                  <td className="px-4 py-3 font-medium text-slate-900">{t.boxNumber}</td>
-                  <td className="px-4 py-3 text-slate-700">{getCustomerName(t.customerId)}</td>
-                  <td className="px-4 py-3 text-xs text-slate-500">
-                    {t.kartuCount > 0 && <div>{t.kartuCount}× kartu = {formatIDR(t.kartuTax)}</div>}
-                    {t.nonKartuWeightGrams > 0 && (
-                      <div>{t.nonKartuWeightGrams}g non-kartu = {formatIDR(t.nonKartuShare)}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">{formatIDR(t.total)}</td>
+              {sortedBoxes.map((group) => (
+                <tr
+                  key={group.boxNumber}
+                  className="cursor-pointer hover:bg-slate-50"
+                  onClick={() => setViewingBoxNumber(group.boxNumber)}
+                >
+                  <td className="px-4 py-3 font-medium text-slate-900">{group.boxNumber}</td>
+                  <td className="px-4 py-3 font-semibold text-slate-900">{formatIDR(group.total)}</td>
+                  <td className="px-4 py-3 text-slate-700">{group.bills.length} customer</td>
                   <td className="px-4 py-3">
-                    <DeadlineBadge deadline={t.deadline} status={t.status} />
+                    <div className="flex flex-wrap gap-1">
+                      {TAX_BILL_STATUSES.filter((s) => group.counts[s] > 0).map((s) => (
+                        <span
+                          key={s}
+                          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_PILL_TONE[s]}`}
+                        >
+                          {group.counts[s]} {s}
+                        </span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge status={t.status} />
-                  </td>
-                  <td className="px-4 py-3">
-                    {t.status === 'Menunggu Konfirmasi' && t.buktiTransfer && (
-                      <BuktiTransferReview
-                        buktiTransfer={t.buktiTransfer}
-                        onConfirm={() => confirmTaxBill(t.id)}
-                        onReject={() => rejectTaxBill(t.id)}
-                      />
-                    )}
-                    {t.status === 'Belum Bayar' && (
-                      <button
-                        onClick={() => simulateCustomerUploadTax(t.id)}
-                        className="text-xs text-slate-400 underline hover:text-slate-600"
-                        title="Demo helper: simulasikan customer meng-upload bukti transfer"
-                      >
-                        Simulate upload (demo)
-                      </button>
+                    {group.nearestDeadline ? (
+                      <DeadlineBadge deadline={group.nearestDeadline} isPaid={false} />
+                    ) : (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                        Semua Lunas
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -187,6 +205,10 @@ export default function TaxBills() {
             onCancel={() => setFormOpen(false)}
           />
         </Modal>
+      )}
+
+      {viewingBoxNumber && (
+        <TaxBoxDetailDialog boxNumber={viewingBoxNumber} onClose={() => setViewingBoxNumber(null)} />
       )}
     </div>
   )
