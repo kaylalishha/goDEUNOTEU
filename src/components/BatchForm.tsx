@@ -22,9 +22,10 @@ import { useStore, type SaveBatchInput } from '../store/useStore'
 interface ItemRow {
   localId: string
   id?: string
-  tipeBarang: TipeBarang
+  tipeBarang: TipeBarang | ''
   tipeKartu?: TipeKartu
   priceIDR: number
+  weightGrams?: number
 }
 
 interface CustomerOrderRow {
@@ -34,7 +35,7 @@ interface CustomerOrderRow {
 }
 
 function emptyItemRow(): ItemRow {
-  return { localId: makeId('row'), tipeBarang: 'Kartu', priceIDR: 0 }
+  return { localId: makeId('row'), tipeBarang: '', priceIDR: 0 }
 }
 
 function emptyCustomerOrder(): CustomerOrderRow {
@@ -50,6 +51,7 @@ function toCustomerOrders(items: Item[]): CustomerOrderRow[] {
       tipeBarang: it.tipeBarang,
       tipeKartu: it.tipeKartu,
       priceIDR: it.priceIDR,
+      weightGrams: it.weightGrams,
     }
     byCustomer.set(it.customerId, [...(byCustomer.get(it.customerId) ?? []), row])
   }
@@ -166,8 +168,12 @@ export function BatchForm({
         return fail('Setiap customer wajib memiliki minimal satu item.')
       }
       for (const it of order.items) {
+        if (!it.tipeBarang) return fail('Tipe Barang wajib dipilih untuk setiap item.')
         if (it.tipeBarang === 'Kartu' && !it.tipeKartu) {
           return fail('Tipe Kartu wajib dipilih untuk item bertipe Kartu.')
+        }
+        if (it.tipeBarang !== 'Kartu' && !(it.weightGrams && it.weightGrams > 0)) {
+          return fail('Berat (gram) wajib diisi untuk item non-Kartu.')
         }
         if (it.priceIDR <= 0) return fail('Harga item (IDR) harus lebih dari 0.')
       }
@@ -189,9 +195,10 @@ export function BatchForm({
         customerId: order.customerId,
         items: order.items.map((it) => ({
           id: it.id,
-          tipeBarang: it.tipeBarang,
+          tipeBarang: it.tipeBarang as TipeBarang,
           tipeKartu: it.tipeBarang === 'Kartu' ? it.tipeKartu : undefined,
           priceIDR: it.priceIDR,
+          weightGrams: it.tipeBarang !== 'Kartu' ? it.weightGrams : undefined,
         })),
       })),
     })
@@ -384,11 +391,16 @@ export function BatchForm({
                         value={it.tipeBarang}
                         onChange={(e) =>
                           updateItem(order.localId, it.localId, {
-                            tipeBarang: e.target.value as TipeBarang,
+                            tipeBarang: e.target.value as TipeBarang | '',
+                            // switching type invalidates whichever conditional
+                            // field belonged to the previous type
+                            tipeKartu: undefined,
+                            weightGrams: undefined,
                           })
                         }
                         disabled={isLocked}
                       >
+                        <option value="">Pilih tipe barang…</option>
                         {TIPE_BARANG_OPTIONS.map((t) => (
                           <option key={t} value={t}>
                             {t}
@@ -419,6 +431,26 @@ export function BatchForm({
                               </option>
                             ))}
                           </select>
+                        </>
+                      )}
+                      {it.tipeBarang && it.tipeBarang !== 'Kartu' && (
+                        <>
+                          <label className="mb-1 block text-xs text-slate-500">
+                            Berat (gram) <span className="text-rose-500">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            min={0}
+                            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                            value={it.weightGrams ?? ''}
+                            onChange={(e) =>
+                              updateItem(order.localId, it.localId, {
+                                weightGrams: Number(e.target.value),
+                              })
+                            }
+                            placeholder="gram"
+                            disabled={isLocked}
+                          />
                         </>
                       )}
                     </div>

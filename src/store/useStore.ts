@@ -39,6 +39,7 @@ export interface CustomerOrderItemInput {
   tipeBarang: TipeBarang
   tipeKartu?: TipeKartu
   priceIDR: number
+  weightGrams?: number
 }
 
 export interface CustomerOrderInput {
@@ -215,21 +216,20 @@ export const useStore = create<StoreState>()(
             : [batch, ...s.batches]
 
           const incomingItems: Item[] = input.customerOrders.flatMap((order) =>
-            order.items.map((it) => ({
-              id: it.id ?? makeId('item'),
-              batchId,
-              customerId: order.customerId,
-              tipeBarang: it.tipeBarang,
-              tipeKartu: it.tipeKartu,
-              priceIDR: it.priceIDR,
-              weightGrams: it.id
-                ? s.items.find((i) => i.id === it.id)?.weightGrams
-                : undefined,
-              createdAt: it.id
-                ? (s.items.find((i) => i.id === it.id)?.createdAt ?? now)
-                : now,
-              updatedAt: now,
-            })),
+            order.items.map((it) => {
+              const existing = it.id ? s.items.find((i) => i.id === it.id) : undefined
+              return {
+                id: it.id ?? makeId('item'),
+                batchId,
+                customerId: order.customerId,
+                tipeBarang: it.tipeBarang,
+                tipeKartu: it.tipeKartu,
+                priceIDR: it.priceIDR,
+                weightGrams: it.weightGrams ?? existing?.weightGrams,
+                createdAt: existing?.createdAt ?? now,
+                updatedAt: now,
+              }
+            }),
           )
 
           const items = [
