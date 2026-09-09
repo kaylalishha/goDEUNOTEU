@@ -5,7 +5,7 @@ import { BatchForm } from '../components/BatchForm'
 import { BatchDetailDialog } from '../components/BatchDetailDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { formatDate, formatIDR } from '../lib/format'
-import type { Batch } from '../types'
+import { ORDER_STATUS_OPTIONS, ORDER_TYPE_OPTIONS, type Batch, type OrderStatus, type OrderType } from '../types'
 import { EmptyState } from '../components/EmptyState'
 import type { SaveBatchInput } from '../store/useStore'
 
@@ -21,6 +21,8 @@ export default function OrderRecap() {
   const [boxFilter, setBoxFilter] = useState('')
   const [batchFilter, setBatchFilter] = useState('')
   const [customerFilter, setCustomerFilter] = useState('')
+  const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('')
+  const [orderTypeFilter, setOrderTypeFilter] = useState<OrderType | ''>('')
   const [formOpen, setFormOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
   const [viewingBatchId, setViewingBatchId] = useState<string | null>(null)
@@ -45,6 +47,8 @@ export default function OrderRecap() {
       const hasCustomer = items.some((i) => i.batchId === b.id && i.customerId === customerFilter)
       if (!hasCustomer) return false
     }
+    if (statusFilter && b.orderStatus !== statusFilter) return false
+    if (orderTypeFilter && b.orderType !== orderTypeFilter) return false
     return true
   })
   const sorted = [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -172,13 +176,45 @@ export default function OrderRecap() {
             ))}
           </select>
         </div>
-        {(boxFilter || batchFilter || customerFilter) && (
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">Order Status</label>
+          <select
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
+          >
+            <option value="">Semua Status</option>
+            {ORDER_STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-slate-500">Order Type</label>
+          <select
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            value={orderTypeFilter}
+            onChange={(e) => setOrderTypeFilter(e.target.value as OrderType | '')}
+          >
+            <option value="">Semua Order Type</option>
+            {ORDER_TYPE_OPTIONS.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+        {(boxFilter || batchFilter || customerFilter || statusFilter || orderTypeFilter) && (
           <button
             className="text-xs text-slate-500 underline"
             onClick={() => {
               setBoxFilter('')
               setBatchFilter('')
               setCustomerFilter('')
+              setStatusFilter('')
+              setOrderTypeFilter('')
             }}
           >
             Reset filter
