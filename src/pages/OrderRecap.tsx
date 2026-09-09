@@ -5,9 +5,29 @@ import { BatchForm } from '../components/BatchForm'
 import { BatchDetailDialog } from '../components/BatchDetailDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { formatDate, formatIDR } from '../lib/format'
-import { ORDER_STATUS_OPTIONS, ORDER_TYPE_OPTIONS, type Batch, type OrderStatus, type OrderType } from '../types'
+import {
+  BATCH_BILL_STATUSES,
+  ORDER_STATUS_OPTIONS,
+  ORDER_TYPE_OPTIONS,
+  type Batch,
+  type BatchBillStatus,
+  type OrderStatus,
+  type OrderType,
+} from '../types'
 import { EmptyState } from '../components/EmptyState'
 import type { SaveBatchInput } from '../store/useStore'
+
+const PAYMENT_PILL_TONE: Record<BatchBillStatus, string> = {
+  'Belum Dibayar': 'bg-rose-100 text-rose-700',
+  'Menunggu Konfirmasi': 'bg-amber-100 text-amber-800',
+  Dibayar: 'bg-emerald-100 text-emerald-700',
+}
+
+const EMPTY_PAYMENT_COUNTS: Record<BatchBillStatus, number> = {
+  'Belum Dibayar': 0,
+  'Menunggu Konfirmasi': 0,
+  Dibayar: 0,
+}
 
 export default function OrderRecap() {
   const batches = useStore((s) => s.batches)
@@ -23,6 +43,7 @@ export default function OrderRecap() {
   const [customerFilter, setCustomerFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState<OrderStatus | ''>('')
   const [orderTypeFilter, setOrderTypeFilter] = useState<OrderType | ''>('')
+  const [paymentFilter, setPaymentFilter] = useState<BatchBillStatus | ''>('')
   const [formOpen, setFormOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
   const [viewingBatchId, setViewingBatchId] = useState<string | null>(null)
@@ -40,6 +61,49 @@ export default function OrderRecap() {
     [batches],
   )
 
+  // One batch can hold several customers, each with their own BatchBill —
+  // so "payment status" per batch is a count per status, not one scalar.
+  const paymentCountsByBatch = useMemo(() => {
+    const map = new Map<string, Record<BatchBillStatus, number>>()
+    for (const bill of batchBills) {
+      const counts = map.get(bill.batchId) ?? { ...EMPTY_PAYMENT_COUNTS }
+      counts[bill.status] += 1
+      map.set(bill.batchId, counts)
+    }
+    return map
+  }, [batchBills])
+
+  function paymentCountsFor(batchId: string): Record<BatchBillStatus, number> {
+    return paymentCountsByBatch.get(batchId) ?? EMPTY_PAYMENT_COUNTS
+  }
+
+  // A pending confirmation is the only thing worth surfacing once it
+  // exists — it outranks "how many are paid/unpaid" until resolved.
+  function paymentPillsFor(batchId: string): Array<[BatchBillStatus, number]> {
+    const counts = paymentCountsFor(batchId)
+    if (counts['Menunggu Konfirmasi'] > 0) {
+      return [['Menunggu Konfirmasi', counts['Menunggu Konfirmasi']]]
+    }
+    return BATCH_BILL_STATUSES.filter((s) => s !== 'Menunggu Konfirmasi' && counts[s] > 0).map((s) => [
+      s,
+      counts[s],
+    ])
+  }
+
+  // How many batches (not bills) contain at least one bill of each status —
+  // drives the filter chip counts, including the "Menunggu Konfirmasi" badge.
+  const paymentStatusBatchCounts = useMemo(() => {
+    const acc: Record<BatchBillStatus, number> = { ...EMPTY_PAYMENT_COUNTS }
+    for (const batch of batches) {
+      const counts = paymentCountsByBatch.get(batch.id)
+      if (!counts) continue
+      for (const status of BATCH_BILL_STATUSES) {
+        if (counts[status] > 0) acc[status] += 1
+      }
+    }
+    return acc
+  }, [batches, paymentCountsByBatch])
+
   const filtered = batches.filter((b) => {
     if (boxFilter && b.boxNumber !== boxFilter) return false
     if (batchFilter && b.batchNumber !== batchFilter) return false
@@ -49,6 +113,7 @@ export default function OrderRecap() {
     }
     if (statusFilter && b.orderStatus !== statusFilter) return false
     if (orderTypeFilter && b.orderType !== orderTypeFilter) return false
+    if (paymentFilter && paymentCountsFor(b.id)[paymentFilter] === 0) return false
     return true
   })
   const sorted = [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -206,7 +271,7 @@ export default function OrderRecap() {
             ))}
           </select>
         </div>
-        {(boxFilter || batchFilter || customerFilter || statusFilter || orderTypeFilter) && (
+        {(boxFilter || batchFilter || customerFilter || statusFilter || orderTypeFilter || paymentFilter) && (
           <button
             className="text-xs text-slate-500 underline"
             onClick={() => {
@@ -215,12 +280,48 @@ export default function OrderRecap() {
               setCustomerFilter('')
               setStatusFilter('')
               setOrderTypeFilter('')
+              setPaymentFilter('')
             }}
           >
             Reset filter
           </button>
         )}
         <span className="ml-auto text-xs text-slate-400">{sorted.length} batch ditemukan</span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setPaymentFilter('')}
+          className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
+            paymentFilter === ''
+              ? 'bg-slate-900 text-white ring-slate-900'
+              : 'bg-white text-slate-600 ring-slate-200'
+          }`}
+        >
+          Semua Payment ({batches.length})
+        </button>
+        {BATCH_BILL_STATUSES.map((s) => {
+          const isPending = s === 'Menunggu Konfirmasi'
+          const count = paymentStatusBatchCounts[s]
+          return (
+            <button
+              key={s}
+              onClick={() => setPaymentFilter(s)}
+              className={`relative rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
+                paymentFilter === s
+                  ? 'bg-slate-900 text-white ring-slate-900'
+                  : 'bg-white text-slate-600 ring-slate-200'
+              }`}
+            >
+              {isPending ? s : `${s} (${count})`}
+              {isPending && count > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {selectedIds.size > 0 && (
@@ -267,6 +368,7 @@ export default function OrderRecap() {
                 <th className="px-4 py-3">Batch</th>
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Total Item</th>
+                <th className="px-4 py-3">Payment</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Created At</th>
                 <th className="px-4 py-3"></th>
@@ -277,6 +379,7 @@ export default function OrderRecap() {
                 const batchItems = items.filter((i) => i.batchId === batch.id)
                 const customerIds = new Set(batchItems.map((i) => i.customerId))
                 const total = batchItems.reduce((sum, i) => sum + i.priceIDR, 0)
+                const hasPendingConfirmation = paymentCountsFor(batch.id)['Menunggu Konfirmasi'] > 0
                 return (
                   <tr
                     key={batch.id}
@@ -285,7 +388,11 @@ export default function OrderRecap() {
                     }`}
                     onClick={() => setViewingBatchId(batch.id)}
                   >
-                    <td className="px-4 py-3">
+                    <td
+                      className={`border-l-4 px-4 py-3 ${
+                        hasPendingConfirmation ? 'border-amber-400' : 'border-transparent'
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedIds.has(batch.id)}
@@ -317,6 +424,22 @@ export default function OrderRecap() {
                         .join(', ') || '—'}
                     </td>
                     <td className="px-4 py-3 text-slate-700">{formatIDR(total)}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {paymentPillsFor(batch.id).length === 0 ? (
+                          <span className="text-xs text-slate-400">—</span>
+                        ) : (
+                          paymentPillsFor(batch.id).map(([status, count]) => (
+                            <span
+                              key={status}
+                              className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${PAYMENT_PILL_TONE[status]}`}
+                            >
+                              {count} {status}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                         {batch.orderStatus}
