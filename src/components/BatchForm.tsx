@@ -99,7 +99,7 @@ export function BatchForm({
   const paidCustomerIds = new Set(
     initial
       ? batchBills
-          .filter((b) => b.batchId === initial.batch.id && b.status === 'Dibayar')
+          .filter((b) => b.batchId === initial.batch.id && b.status === 'Lunas')
           .map((b) => b.customerId)
       : [],
   )
@@ -107,7 +107,7 @@ export function BatchForm({
     ? batchBills.some(
         (b) =>
           b.batchId === initial.batch.id &&
-          (b.status === 'Dibayar' || b.status === 'Menunggu Konfirmasi'),
+          (b.status === 'Lunas' || b.status === 'Menunggu Konfirmasi'),
       )
     : false
 
@@ -345,9 +345,9 @@ export function BatchForm({
                 {isLocked && (
                   <span
                     className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                    title="Pembayaran customer ini sudah dikonfirmasi (Dibayar) — item terkunci agar tidak berubah diam-diam."
+                    title="Pembayaran customer ini sudah dikonfirmasi (Lunas) — item terkunci agar tidak berubah diam-diam."
                   >
-                    🔒 Dibayar — terkunci
+                    🔒 Lunas — terkunci
                   </span>
                 )}
                 {!isLocked && customerOrders.length > 1 && (

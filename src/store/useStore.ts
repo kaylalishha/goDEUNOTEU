@@ -169,7 +169,7 @@ function syncBatchBillsForBatch(
       upnotesTotal: 0,
       bankAccount: DEFAULT_BANK_ACCOUNT,
       total: itemTotal,
-      status: 'Belum Dibayar',
+      status: 'Belum Bayar',
       createdAt: now,
     }
   })
@@ -374,18 +374,18 @@ export const useStore = create<StoreState>()(
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
-              ? { ...b, status: 'Dibayar' as BatchBillStatus, paidAt: new Date().toISOString() }
+              ? { ...b, status: 'Lunas' as BatchBillStatus, paidAt: new Date().toISOString() }
               : b,
           ),
         }))
-        get().pushToast('Pembayaran batch dikonfirmasi — status Dibayar.', 'success')
+        get().pushToast('Pembayaran batch dikonfirmasi — status Lunas.', 'success')
       },
 
       rejectBatchBill: (batchBillId) => {
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
-              ? { ...b, status: 'Belum Dibayar' as BatchBillStatus, buktiTransfer: undefined, paidAt: undefined }
+              ? { ...b, status: 'Belum Bayar' as BatchBillStatus, buktiTransfer: undefined, paidAt: undefined }
               : b,
           ),
         }))
@@ -466,16 +466,19 @@ export const useStore = create<StoreState>()(
       // photoDataUrls (array) on Batch. v2 added itemIds to TaxBill. v3
       // introduced the Box entity (Feature B) and dropped "Menunggu
       // Pembayaran ke Seller" from OrderStatus — box status is now the
-      // single source of truth for every batch inside it. Browsers with
-      // data saved before any of these changes need their persisted
-      // records backfilled, or the app crashes reading fields that don't
-      // exist yet, or shows an orderStatus no longer in the option list.
-      version: 3,
+      // single source of truth for every batch inside it. v4 renamed
+      // BatchBillStatus to match TaxBillStatus's wording ("Belum Dibayar"
+      // → "Belum Bayar", "Dibayar" → "Lunas"). Browsers with data saved
+      // before any of these changes need their persisted records
+      // backfilled, or the app crashes reading fields that don't exist
+      // yet, or shows a status no longer in the option list.
+      version: 4,
       migrate: (persistedState) => {
         const state = persistedState as {
           batches?: Array<Record<string, unknown>>
           boxes?: Array<Record<string, unknown>>
           taxBills?: Array<Record<string, unknown>>
+          batchBills?: Array<Record<string, unknown>>
         }
         if (state?.batches) {
           state.batches = state.batches.map((b) => ({
@@ -489,6 +492,16 @@ export const useStore = create<StoreState>()(
           state.taxBills = state.taxBills.map((t) => ({
             ...t,
             itemIds: t.itemIds ?? [],
+          }))
+        }
+        if (state?.batchBills) {
+          const BATCH_BILL_STATUS_RENAME: Record<string, string> = {
+            'Belum Dibayar': 'Belum Bayar',
+            Dibayar: 'Lunas',
+          }
+          state.batchBills = state.batchBills.map((b) => ({
+            ...b,
+            status: BATCH_BILL_STATUS_RENAME[b.status as string] ?? b.status,
           }))
         }
         if (!state.boxes && state?.batches) {

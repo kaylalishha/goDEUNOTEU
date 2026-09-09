@@ -340,7 +340,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 5000,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 96000 + 180000 + 5000,
-    status: 'Dibayar',
+    status: 'Lunas',
     createdAt: daysAgoIso(10),
     paidAt: daysAgoIso(9),
     buktiTransfer: {
@@ -377,7 +377,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 252000 + 108000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: daysAgoIso(9),
   },
   {
@@ -389,7 +389,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 312000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: daysAgoIso(4),
   },
   {
@@ -401,7 +401,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 84000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: daysAgoIso(4),
   },
   {
@@ -413,7 +413,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 60000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: daysAgoIso(1),
   },
   {
@@ -425,7 +425,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 45000,
-    status: 'Dibayar',
+    status: 'Lunas',
     createdAt: hoursAgoIso(7),
     paidAt: hoursAgoIso(2),
     buktiTransfer: {
@@ -462,7 +462,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 96000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(5),
   },
   {
@@ -474,7 +474,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 210000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(4),
   },
   {
@@ -486,7 +486,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 330000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(3),
   },
   {
@@ -498,7 +498,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 88000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(2),
   },
   {
@@ -510,7 +510,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 275000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(1),
   },
 ]

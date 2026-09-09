@@ -50,9 +50,9 @@ export default function Overview() {
   const batchesMissingPhoto = batches.filter((b) => (b.photoDataUrls ?? []).length === 0).length
   const batchesWithoutBox = batches.filter((b) => !b.boxNumber).length
 
-  const bbBelumDibayar = batchBills.filter((b) => b.status === 'Belum Dibayar').length
+  const bbBelumBayar = batchBills.filter((b) => b.status === 'Belum Bayar').length
   const bbMenunggu = batchBills.filter((b) => b.status === 'Menunggu Konfirmasi').length
-  const bbDibayar = batchBills.filter((b) => b.status === 'Dibayar').length
+  const bbLunas = batchBills.filter((b) => b.status === 'Lunas').length
 
   const overdueTax = taxBills.filter(
     (t) => t.status !== 'Lunas' && daysRemaining(t.deadline) < 0,
@@ -109,13 +109,13 @@ export default function Overview() {
             value={batchesMissingPhoto}
             tone={batchesMissingPhoto > 0 ? 'warning' : undefined}
           />
-          <Stat label="Belum Dibayar" value={bbBelumDibayar} tone={bbBelumDibayar > 0 ? 'danger' : undefined} />
+          <Stat label="Belum Bayar" value={bbBelumBayar} tone={bbBelumBayar > 0 ? 'danger' : undefined} />
           <Stat
             label="Menunggu Konfirmasi"
             value={bbMenunggu}
             tone={bbMenunggu > 0 ? 'warning' : undefined}
           />
-          <Stat label="Dibayar" value={bbDibayar} />
+          <Stat label="Lunas" value={bbLunas} />
         </Card>
 
         <Card

@@ -18,15 +18,15 @@ import { EmptyState } from '../components/EmptyState'
 import type { SaveBatchInput } from '../store/useStore'
 
 const PAYMENT_PILL_TONE: Record<BatchBillStatus, string> = {
-  'Belum Dibayar': 'bg-rose-100 text-rose-700',
+  'Belum Bayar': 'bg-rose-100 text-rose-700',
   'Menunggu Konfirmasi': 'bg-amber-100 text-amber-800',
-  Dibayar: 'bg-emerald-100 text-emerald-700',
+  Lunas: 'bg-emerald-100 text-emerald-700',
 }
 
 const EMPTY_PAYMENT_COUNTS: Record<BatchBillStatus, number> = {
-  'Belum Dibayar': 0,
+  'Belum Bayar': 0,
   'Menunggu Konfirmasi': 0,
-  Dibayar: 0,
+  Lunas: 0,
 }
 
 export default function OrderRecap() {
@@ -173,7 +173,7 @@ export default function OrderRecap() {
   }
 
   const selectedPaidBillCount = batchBills.filter(
-    (b) => selectedIds.has(b.batchId) && (b.status === 'Dibayar' || b.status === 'Menunggu Konfirmasi'),
+    (b) => selectedIds.has(b.batchId) && (b.status === 'Lunas' || b.status === 'Menunggu Konfirmasi'),
   ).length
 
   return (
