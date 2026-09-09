@@ -3,7 +3,6 @@ import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
 import { BatchForm } from '../components/BatchForm'
 import { BatchDetailDialog } from '../components/BatchDetailDialog'
-import { BulkSetBoxDialog } from '../components/BulkSetBoxDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { formatDate, formatIDR } from '../lib/format'
 import type { Batch } from '../types'
@@ -17,7 +16,6 @@ export default function OrderRecap() {
   const customers = useStore((s) => s.customers)
   const getCustomerName = useStore((s) => s.getCustomerName)
   const saveBatch = useStore((s) => s.saveBatch)
-  const bulkSetBoxNumber = useStore((s) => s.bulkSetBoxNumber)
   const deleteBatches = useStore((s) => s.deleteBatches)
 
   const [boxFilter, setBoxFilter] = useState('')
@@ -28,7 +26,6 @@ export default function OrderRecap() {
   const [viewingBatchId, setViewingBatchId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
-  const [bulkBoxDialogOpen, setBulkBoxDialogOpen] = useState(false)
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
@@ -98,12 +95,6 @@ export default function OrderRecap() {
       }
       return next
     })
-  }
-
-  function handleBulkBoxConfirm(boxNumber: string) {
-    bulkSetBoxNumber(Array.from(selectedIds), boxNumber)
-    setSelectedIds(new Set())
-    setBulkBoxDialogOpen(false)
   }
 
   function handleBulkDeleteConfirm() {
@@ -202,12 +193,6 @@ export default function OrderRecap() {
             {selectedIds.size} batch dipilih
           </span>
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => setBulkBoxDialogOpen(true)}
-              className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-rose-700"
-            >
-              Set Box Number
-            </button>
             <button
               onClick={() => setBulkDeleteConfirmOpen(true)}
               className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
@@ -361,15 +346,6 @@ export default function OrderRecap() {
               setViewingBatchId(null)
             }
           }}
-        />
-      )}
-
-      {bulkBoxDialogOpen && (
-        <BulkSetBoxDialog
-          count={selectedIds.size}
-          existingBoxOptions={boxOptions}
-          onConfirm={handleBulkBoxConfirm}
-          onCancel={() => setBulkBoxDialogOpen(false)}
         />
       )}
 

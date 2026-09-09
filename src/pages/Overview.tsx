@@ -41,12 +41,14 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 
 export default function Overview() {
   const batches = useStore((s) => s.batches)
+  const boxes = useStore((s) => s.boxes)
   const batchBills = useStore((s) => s.batchBills)
   const taxBills = useStore((s) => s.taxBills)
   const estimatorConfig = useStore((s) => s.estimatorConfig)
   const getCustomerName = useStore((s) => s.getCustomerName)
 
   const batchesMissingPhoto = batches.filter((b) => (b.photoDataUrls ?? []).length === 0).length
+  const batchesWithoutBox = batches.filter((b) => !b.boxNumber).length
 
   const bbBelumDibayar = batchBills.filter((b) => b.status === 'Belum Dibayar').length
   const bbMenunggu = batchBills.filter((b) => b.status === 'Menunggu Konfirmasi').length
@@ -114,6 +116,19 @@ export default function Overview() {
             tone={bbMenunggu > 0 ? 'warning' : undefined}
           />
           <Stat label="Dibayar" value={bbDibayar} />
+        </Card>
+
+        <Card
+          title="B · Box Management"
+          question="Which batches are grouped into which box, and what's each box's current status?"
+          to="/boxes"
+        >
+          <Stat label="Total box" value={boxes.length} />
+          <Stat
+            label="Batch belum masuk box"
+            value={batchesWithoutBox}
+            tone={batchesWithoutBox > 0 ? 'warning' : undefined}
+          />
         </Card>
 
         <Card

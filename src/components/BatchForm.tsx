@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import {
-  ORDER_STATUS_OPTIONS,
   ORDER_TYPE_OPTIONS,
   TIPE_BARANG_OPTIONS,
   TIPE_KARTU_OPTIONS,
   type Batch,
   type Customer,
   type Item,
-  type OrderStatus,
   type OrderType,
   type TipeBarang,
   type TipeKartu,
@@ -17,7 +15,7 @@ import { AlertDialog } from './AlertDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { makeId } from '../lib/id'
 import { formatIDR } from '../lib/format'
-import { BATCH_NUMBER_PREFIX, BOX_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
+import { BATCH_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
 import { useStore, type SaveBatchInput } from '../store/useStore'
 
 interface ItemRow {
@@ -87,15 +85,9 @@ export function BatchForm({
     }, 0)
     return latest + 1
   })
-  const [boxNumberValue, setBoxNumberValue] = useState<number | ''>(
-    extractNumber(initial?.batch.boxNumber, BOX_NUMBER_PREFIX),
-  )
   const [orderIdWH, setOrderIdWH] = useState(initial?.batch.orderIdWH ?? '')
   const [orderType, setOrderType] = useState<OrderType>(initial?.batch.orderType ?? 'ReqShare')
   const [photoDataUrls, setPhotoDataUrls] = useState<string[]>(initial?.batch.photoDataUrls ?? [])
-  const [orderStatus, setOrderStatus] = useState<OrderStatus>(
-    initial?.batch.orderStatus ?? 'Menunggu Pembayaran ke Seller',
-  )
   const [customerOrders, setCustomerOrders] = useState<CustomerOrderRow[]>(
     initial ? toCustomerOrders(initial.items) : [emptyCustomerOrder()],
   )
@@ -207,11 +199,9 @@ export function BatchForm({
       onSubmit({
         batchId: initial?.batch.id,
         batchNumber: formatWithPrefix(BATCH_NUMBER_PREFIX, batchNumberValue, 2)!,
-        boxNumber: formatWithPrefix(BOX_NUMBER_PREFIX, boxNumberValue, 3),
         orderIdWH: orderIdWH.trim(),
         orderType,
         photoDataUrls,
-        orderStatus,
         customerOrders: customerOrders.map((order) => ({
           customerId: order.customerId,
           items: order.items.map((it) => ({
@@ -271,27 +261,6 @@ export function BatchForm({
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
-              Box Number <span className="font-normal text-slate-400">(opsional — bisa diisi nanti)</span>
-            </label>
-            <div className="flex items-stretch gap-2">
-              <span className="flex items-center whitespace-nowrap rounded-md border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-500">
-                {BOX_NUMBER_PREFIX} -
-              </span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
-                value={boxNumberValue}
-                onChange={(e) =>
-                  setBoxNumberValue(e.target.value === '' ? '' : Math.trunc(Number(e.target.value)))
-                }
-                placeholder="001"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
               Order ID (WH) <span className="text-rose-500">*</span>
             </label>
             <input
@@ -317,21 +286,10 @@ export function BatchForm({
               ))}
             </select>
           </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Order Status <span className="text-rose-500">*</span>
-            </label>
-            <select
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
-              value={orderStatus}
-              onChange={(e) => setOrderStatus(e.target.value as OrderStatus)}
-            >
-              {ORDER_STATUS_OPTIONS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
+          <div className="col-span-2 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-500">
+            Order status batch baru selalu dimulai dari{' '}
+            <span className="font-medium text-slate-700">Dibeli dari Seller</span> dan tidak bisa diubah
+            di sini — status hanya berubah lewat Box Management, saat batch ini dimasukkan ke sebuah box.
           </div>
           <div className="col-span-2">
             <MultiImageInput label="Foto Produk" values={photoDataUrls} onChange={setPhotoDataUrls} />
