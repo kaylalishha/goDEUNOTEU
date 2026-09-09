@@ -104,6 +104,18 @@ export default function TaxBills() {
   }, {})
   const overdueCount = taxBills.filter((t) => t.status !== 'Lunas' && daysRemaining(t.deadline) < 0).length
 
+  // A pending confirmation outranks "how many are paid/unpaid" until it's
+  // resolved — same rule as the batch Payment column on Order Recap.
+  function statusPillsFor(group: BoxGroup): Array<[TaxBillStatus, number]> {
+    if (group.counts['Menunggu Konfirmasi'] > 0) {
+      return [['Menunggu Konfirmasi', group.counts['Menunggu Konfirmasi']]]
+    }
+    return TAX_BILL_STATUSES.filter((s) => s !== 'Menunggu Konfirmasi' && group.counts[s] > 0).map((s) => [
+      s,
+      group.counts[s],
+    ])
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-start justify-between">
@@ -138,17 +150,27 @@ export default function TaxBills() {
           >
             Semua ({taxBills.length})
           </button>
-          {TAX_BILL_STATUSES.map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
-                statusFilter === s ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-600 ring-slate-200'
-              }`}
-            >
-              {s} ({counts[s]})
-            </button>
-          ))}
+          {TAX_BILL_STATUSES.map((s) => {
+            const isPending = s === 'Menunggu Konfirmasi'
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`relative rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
+                  statusFilter === s
+                    ? 'bg-slate-900 text-white ring-slate-900'
+                    : 'bg-white text-slate-600 ring-slate-200'
+                }`}
+              >
+                {isPending ? s : `${s} (${counts[s]})`}
+                {isPending && counts[s] > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                    {counts[s]}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
         <div className="relative w-full max-w-xs sm:w-64">
           <input
@@ -194,23 +216,31 @@ export default function TaxBills() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sortedBoxes.map((group) => (
+              {sortedBoxes.map((group) => {
+                const hasPendingConfirmation = group.counts['Menunggu Konfirmasi'] > 0
+                return (
                 <tr
                   key={group.boxNumber}
                   className="cursor-pointer hover:bg-slate-50"
                   onClick={() => setViewingBoxNumber(group.boxNumber)}
                 >
-                  <td className="px-4 py-3 font-medium text-slate-900">{group.boxNumber}</td>
+                  <td
+                    className={`border-l-4 px-4 py-3 font-medium text-slate-900 ${
+                      hasPendingConfirmation ? 'border-amber-400' : 'border-transparent'
+                    }`}
+                  >
+                    {group.boxNumber}
+                  </td>
                   <td className="px-4 py-3 font-semibold text-slate-900">{formatIDR(group.total)}</td>
                   <td className="px-4 py-3 text-slate-700">{group.bills.length} customer</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {TAX_BILL_STATUSES.filter((s) => group.counts[s] > 0).map((s) => (
+                      {statusPillsFor(group).map(([s, count]) => (
                         <span
                           key={s}
                           className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_PILL_TONE[s]}`}
                         >
-                          {group.counts[s]} {s}
+                          {count} {s}
                         </span>
                       ))}
                     </div>
@@ -226,7 +256,8 @@ export default function TaxBills() {
                     )}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
