@@ -479,17 +479,30 @@ export const useStore = create<StoreState>()(
       // Pembayaran ke Seller" from OrderStatus — box status is now the
       // single source of truth for every batch inside it. v4 renamed
       // BatchBillStatus to match TaxBillStatus's wording ("Belum Dibayar"
-      // → "Belum Bayar", "Dibayar" → "Lunas"). Browsers with data saved
-      // before any of these changes need their persisted records
-      // backfilled, or the app crashes reading fields that don't exist
-      // yet, or shows a status no longer in the option list.
-      version: 4,
+      // → "Belum Bayar", "Dibayar" → "Lunas"). v5 grew the seed customer
+      // list from 5 to 15 — persisted state otherwise keeps whatever
+      // `customers` array a browser already saved, so the 10 new demo
+      // customers would silently never show up for anyone who'd already
+      // used the app. Browsers with data saved before any of these
+      // changes need their persisted records backfilled, or the app
+      // crashes reading fields that don't exist yet, or shows a status
+      // (or a missing customer) no longer matching the current app.
+      version: 5,
       migrate: (persistedState) => {
         const state = persistedState as {
+          customers?: Array<Record<string, unknown>>
           batches?: Array<Record<string, unknown>>
           boxes?: Array<Record<string, unknown>>
           taxBills?: Array<Record<string, unknown>>
           batchBills?: Array<Record<string, unknown>>
+        }
+        if (state?.customers) {
+          const existingIds = new Set(state.customers.map((c) => c.id))
+          const missingSeedCustomers = seedCustomers.filter((c) => !existingIds.has(c.id))
+          state.customers = [
+            ...state.customers,
+            ...(missingSeedCustomers as unknown as Array<Record<string, unknown>>),
+          ]
         }
         if (state?.batches) {
           state.batches = state.batches.map((b) => ({

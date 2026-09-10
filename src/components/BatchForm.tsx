@@ -13,6 +13,7 @@ import {
 import { MultiImageInput } from './MultiImageInput'
 import { AlertDialog } from './AlertDialog'
 import { ConfirmDialog } from './ConfirmDialog'
+import { CustomerCombobox } from './CustomerCombobox'
 import { makeId } from '../lib/id'
 import { formatIDR } from '../lib/format'
 import { BATCH_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
@@ -324,23 +325,13 @@ export function BatchForm({
                   <label className="mb-1 block text-xs text-slate-500">
                     Customer <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  <CustomerCombobox
+                    customers={customers}
                     value={order.customerId}
-                    onChange={(e) => updateOrder(order.localId, { customerId: e.target.value })}
+                    onChange={(customerId) => updateOrder(order.localId, { customerId })}
                     disabled={isLocked}
-                  >
-                    <option value="">Pilih customer…</option>
-                    {customers.map((c) => (
-                      <option
-                        key={c.id}
-                        value={c.id}
-                        disabled={usedCustomerIds.has(c.id) && c.id !== order.customerId}
-                      >
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    disabledIds={usedCustomerIds}
+                  />
                 </div>
                 {isLocked && (
                   <span

@@ -4,6 +4,7 @@ import { Modal } from '../components/Modal'
 import { BatchForm } from '../components/BatchForm'
 import { BatchDetailDialog } from '../components/BatchDetailDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { CustomerCombobox } from '../components/CustomerCombobox'
 import { formatDate, formatIDR } from '../lib/format'
 import {
   BATCH_BILL_STATUSES,
@@ -239,23 +240,18 @@ export default function OrderRecap() {
             ))}
           </select>
         </div>
-        <div>
+        <div className="w-48">
           <label className="mb-1 block text-xs font-medium text-slate-500">Customer</label>
-          <select
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+          <CustomerCombobox
+            customers={customers}
             value={customerFilter}
-            onChange={(e) => {
-              setCustomerFilter(e.target.value)
+            onChange={(customerId) => {
+              setCustomerFilter(customerId)
               setPage(1)
             }}
-          >
-            <option value="">Semua Customer</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            allowClear
+            clearLabel="Semua Customer"
+          />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500">Order Status</label>
