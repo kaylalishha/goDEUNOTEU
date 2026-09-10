@@ -4,6 +4,7 @@ import { Modal } from '../components/Modal'
 import { BoxForm } from '../components/BoxForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState } from '../components/EmptyState'
+import { PAGE_SIZE, Pagination } from '../components/Pagination'
 import { formatDate } from '../lib/format'
 import type { Box } from '../types'
 
@@ -17,12 +18,16 @@ export default function BoxManagement() {
   const [viewingBox, setViewingBox] = useState<Box | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const [page, setPage] = useState(1)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   const sorted = [...boxes].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
-  const selectedInView = sorted.filter((b) => selectedIds.has(b.id)).length
-  const allInViewSelected = sorted.length > 0 && selectedInView === sorted.length
+  const selectedInView = pageItems.filter((b) => selectedIds.has(b.id)).length
+  const allInViewSelected = pageItems.length > 0 && selectedInView === pageItems.length
 
   useEffect(() => {
     if (selectAllRef.current) {
@@ -49,9 +54,9 @@ export default function BoxManagement() {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (allInViewSelected) {
-        sorted.forEach((b) => next.delete(b.id))
+        pageItems.forEach((b) => next.delete(b.id))
       } else {
-        sorted.forEach((b) => next.add(b.id))
+        pageItems.forEach((b) => next.add(b.id))
       }
       return next
     })
@@ -130,7 +135,7 @@ export default function BoxManagement() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sorted.map((box) => {
+              {pageItems.map((box) => {
                 const batchNumbers = batchNumbersFor(box)
                 return (
                   <tr
@@ -168,6 +173,7 @@ export default function BoxManagement() {
               })}
             </tbody>
           </table>
+          <Pagination page={safePage} totalItems={sorted.length} onPageChange={setPage} />
         </div>
       )}
 

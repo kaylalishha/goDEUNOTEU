@@ -45,6 +45,16 @@ export const seedCustomers: Customer[] = [
   { id: 'cust_citra', name: 'Citra Wulandari' },
   { id: 'cust_dewi', name: 'Dewi Anggraini' },
   { id: 'cust_eka', name: 'Eka Putri' },
+  { id: 'cust_fitri', name: 'Fitri Handayani' },
+  { id: 'cust_gita', name: 'Gita Ramadhani' },
+  { id: 'cust_hana', name: 'Hana Safitri' },
+  { id: 'cust_intan', name: 'Intan Permata' },
+  { id: 'cust_jihan', name: 'Jihan Salsabila' },
+  { id: 'cust_kirana', name: 'Kirana Putri' },
+  { id: 'cust_larasati', name: 'Larasati Wibowo' },
+  { id: 'cust_maya', name: 'Maya Kusuma' },
+  { id: 'cust_nadia', name: 'Nadia Rahmawati' },
+  { id: 'cust_olivia', name: 'Olivia Setiawan' },
 ]
 
 export const seedBatches: Batch[] = [

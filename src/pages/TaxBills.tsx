@@ -6,6 +6,7 @@ import { TaxBoxDetailDialog } from '../components/TaxBoxDetailDialog'
 import { DeadlineBadge } from '../components/DeadlineBadge'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState } from '../components/EmptyState'
+import { PAGE_SIZE, Pagination } from '../components/Pagination'
 import { daysRemaining, formatDate, formatIDR } from '../lib/format'
 import { TAX_BILL_STATUSES, type TaxBill, type TaxBillStatus } from '../types'
 
@@ -40,6 +41,7 @@ export default function TaxBills() {
   const [viewingBoxNumber, setViewingBoxNumber] = useState<string | null>(null)
   const [selectedBoxNumbers, setSelectedBoxNumbers] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const [page, setPage] = useState(1)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   const boxOptions = useMemo(
@@ -103,8 +105,12 @@ export default function TaxBills() {
   })
   const sortedBoxes = [...filteredBoxes].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
 
-  const selectedInView = sortedBoxes.filter((g) => selectedBoxNumbers.has(g.boxNumber)).length
-  const allInViewSelected = sortedBoxes.length > 0 && selectedInView === sortedBoxes.length
+  const totalPages = Math.max(1, Math.ceil(sortedBoxes.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = sortedBoxes.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  const selectedInView = pageItems.filter((g) => selectedBoxNumbers.has(g.boxNumber)).length
+  const allInViewSelected = pageItems.length > 0 && selectedInView === pageItems.length
 
   useEffect(() => {
     if (selectAllRef.current) {
@@ -125,9 +131,9 @@ export default function TaxBills() {
     setSelectedBoxNumbers((prev) => {
       const next = new Set(prev)
       if (allInViewSelected) {
-        sortedBoxes.forEach((g) => next.delete(g.boxNumber))
+        pageItems.forEach((g) => next.delete(g.boxNumber))
       } else {
-        sortedBoxes.forEach((g) => next.add(g.boxNumber))
+        pageItems.forEach((g) => next.add(g.boxNumber))
       }
       return next
     })
@@ -189,7 +195,10 @@ export default function TaxBills() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setStatusFilter('')}
+            onClick={() => {
+              setStatusFilter('')
+              setPage(1)
+            }}
             className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
               statusFilter === '' ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-600 ring-slate-200'
             }`}
@@ -201,7 +210,10 @@ export default function TaxBills() {
             return (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => {
+                  setStatusFilter(s)
+                  setPage(1)
+                }}
                 className={`relative rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
                   statusFilter === s
                     ? 'bg-slate-900 text-white ring-slate-900'
@@ -222,7 +234,10 @@ export default function TaxBills() {
           <input
             type="text"
             value={customerQuery}
-            onChange={(e) => setCustomerQuery(e.target.value)}
+            onChange={(e) => {
+              setCustomerQuery(e.target.value)
+              setPage(1)
+            }}
             placeholder="Cari nama customer…"
             aria-label="Cari nama customer"
             className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
@@ -230,7 +245,10 @@ export default function TaxBills() {
           {customerQuery && (
             <button
               type="button"
-              onClick={() => setCustomerQuery('')}
+              onClick={() => {
+                setCustomerQuery('')
+                setPage(1)
+              }}
               aria-label="Hapus pencarian"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
             >
@@ -292,7 +310,7 @@ export default function TaxBills() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sortedBoxes.map((group) => {
+              {pageItems.map((group) => {
                 const hasPendingConfirmation = group.counts['Menunggu Konfirmasi'] > 0
                 return (
                 <tr
@@ -351,6 +369,7 @@ export default function TaxBills() {
               })}
             </tbody>
           </table>
+          <Pagination page={safePage} totalItems={sortedBoxes.length} onPageChange={setPage} />
         </div>
       )}
 

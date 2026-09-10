@@ -15,6 +15,7 @@ import {
   type OrderType,
 } from '../types'
 import { EmptyState } from '../components/EmptyState'
+import { PAGE_SIZE, Pagination } from '../components/Pagination'
 import type { SaveBatchInput } from '../store/useStore'
 
 const PAYMENT_PILL_TONE: Record<BatchBillStatus, string> = {
@@ -50,6 +51,7 @@ export default function OrderRecap() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const [page, setPage] = useState(1)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   const boxOptions = useMemo(
@@ -118,8 +120,12 @@ export default function OrderRecap() {
   })
   const sorted = [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
-  const selectedInView = sorted.filter((b) => selectedIds.has(b.id)).length
-  const allInViewSelected = sorted.length > 0 && selectedInView === sorted.length
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  const selectedInView = pageItems.filter((b) => selectedIds.has(b.id)).length
+  const allInViewSelected = pageItems.length > 0 && selectedInView === pageItems.length
 
   useEffect(() => {
     if (selectAllRef.current) {
@@ -137,13 +143,14 @@ export default function OrderRecap() {
 
   // Shift-click selects the whole visible range in one go — the intended
   // workflow is checking a run of batches (eg. batch 1-200) that all
-  // belong to the same box, identified only after the fact.
+  // belong to the same box, identified only after the fact. Range is
+  // scoped to the current page, same as "select all".
   function handleRowCheckboxClick(batchId: string, index: number, shiftKey: boolean) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (shiftKey && lastClickedIndex !== null) {
         const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b)
-        for (let i = start; i <= end; i++) next.add(sorted[i].id)
+        for (let i = start; i <= end; i++) next.add(pageItems[i].id)
       } else if (next.has(batchId)) {
         next.delete(batchId)
       } else {
@@ -158,9 +165,9 @@ export default function OrderRecap() {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (allInViewSelected) {
-        sorted.forEach((b) => next.delete(b.id))
+        pageItems.forEach((b) => next.delete(b.id))
       } else {
-        sorted.forEach((b) => next.add(b.id))
+        pageItems.forEach((b) => next.add(b.id))
       }
       return next
     })
@@ -201,7 +208,10 @@ export default function OrderRecap() {
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={boxFilter}
-            onChange={(e) => setBoxFilter(e.target.value)}
+            onChange={(e) => {
+              setBoxFilter(e.target.value)
+              setPage(1)
+            }}
           >
             <option value="">Semua Box</option>
             {boxOptions.map((b) => (
@@ -216,7 +226,10 @@ export default function OrderRecap() {
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={batchFilter}
-            onChange={(e) => setBatchFilter(e.target.value)}
+            onChange={(e) => {
+              setBatchFilter(e.target.value)
+              setPage(1)
+            }}
           >
             <option value="">Semua Batch</option>
             {batchOptions.map((b) => (
@@ -231,7 +244,10 @@ export default function OrderRecap() {
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={customerFilter}
-            onChange={(e) => setCustomerFilter(e.target.value)}
+            onChange={(e) => {
+              setCustomerFilter(e.target.value)
+              setPage(1)
+            }}
           >
             <option value="">Semua Customer</option>
             {customers.map((c) => (
@@ -246,7 +262,10 @@ export default function OrderRecap() {
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as OrderStatus | '')
+              setPage(1)
+            }}
           >
             <option value="">Semua Status</option>
             {ORDER_STATUS_OPTIONS.map((s) => (
@@ -261,7 +280,10 @@ export default function OrderRecap() {
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={orderTypeFilter}
-            onChange={(e) => setOrderTypeFilter(e.target.value as OrderType | '')}
+            onChange={(e) => {
+              setOrderTypeFilter(e.target.value as OrderType | '')
+              setPage(1)
+            }}
           >
             <option value="">Semua Order Type</option>
             {ORDER_TYPE_OPTIONS.map((t) => (
@@ -281,6 +303,7 @@ export default function OrderRecap() {
               setStatusFilter('')
               setOrderTypeFilter('')
               setPaymentFilter('')
+              setPage(1)
             }}
           >
             Reset filter
@@ -291,7 +314,10 @@ export default function OrderRecap() {
 
       <div className="flex flex-wrap items-center gap-2">
         <button
-          onClick={() => setPaymentFilter('')}
+          onClick={() => {
+            setPaymentFilter('')
+            setPage(1)
+          }}
           className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
             paymentFilter === ''
               ? 'bg-slate-900 text-white ring-slate-900'
@@ -306,7 +332,10 @@ export default function OrderRecap() {
           return (
             <button
               key={s}
-              onClick={() => setPaymentFilter(s)}
+              onClick={() => {
+                setPaymentFilter(s)
+                setPage(1)
+              }}
               className={`relative rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
                 paymentFilter === s
                   ? 'bg-slate-900 text-white ring-slate-900'
@@ -375,7 +404,7 @@ export default function OrderRecap() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sorted.map((batch, index) => {
+              {pageItems.map((batch, index) => {
                 const batchItems = items.filter((i) => i.batchId === batch.id)
                 const customerIds = new Set(batchItems.map((i) => i.customerId))
                 const total = batchItems.reduce((sum, i) => sum + i.priceIDR, 0)
@@ -462,6 +491,7 @@ export default function OrderRecap() {
               })}
             </tbody>
           </table>
+          <Pagination page={safePage} totalItems={sorted.length} onPageChange={setPage} />
         </div>
       )}
 
