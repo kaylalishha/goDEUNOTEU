@@ -267,7 +267,7 @@ export function BatchForm({
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
               value={orderIdWH}
               onChange={(e) => setOrderIdWH(e.target.value)}
-              placeholder="e.g. WH-2026-0001"
+              placeholder="e.g. m12345678910"
             />
           </div>
           <div>
