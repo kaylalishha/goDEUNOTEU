@@ -4,6 +4,7 @@ import { makeId } from '../lib/id'
 import {
   seedBatchBills,
   seedBatches,
+  seedBoxes,
   seedCustomers,
   seedEstimatorConfig,
   seedItems,
@@ -13,18 +14,19 @@ import type {
   Batch,
   BatchBill,
   BatchBillStatus,
+  Box,
+  BoxStatus,
   BuktiTransfer,
   Customer,
   EstimatorConfig,
   Item,
-  OrderStatus,
   OrderType,
   TaxBill,
   TaxBillStatus,
   TipeBarang,
   TipeKartu,
 } from '../types'
-import { PAYMENT_METHOD_OPTIONS, TAX_PAYMENT_WINDOW_DAYS } from '../types'
+import { DEFAULT_BOX_STATUS, PAYMENT_METHOD_OPTIONS, TAX_PAYMENT_WINDOW_DAYS } from '../types'
 
 const DEFAULT_BANK_ACCOUNT = 'BCA 1234567890 a.n. Admin GO Aikatsu'
 
@@ -50,17 +52,22 @@ export interface CustomerOrderInput {
 export interface SaveBatchInput {
   batchId?: string
   batchNumber: string
-  boxNumber?: string
   orderIdWH: string
   orderType: OrderType
   photoDataUrls: string[]
-  orderStatus: OrderStatus
   customerOrders: CustomerOrderInput[]
+}
+
+export interface SaveBoxInput {
+  boxId?: string
+  boxNumber: string
+  batchIds: string[]
 }
 
 interface StoreState {
   customers: Customer[]
   batches: Batch[]
+  boxes: Box[]
   items: Item[]
   batchBills: BatchBill[]
   taxBills: TaxBill[]
@@ -76,16 +83,25 @@ interface StoreState {
 
   // Feature A — one submitted form = one Batch, containing per-customer items.
   // Saving a batch also auto-bills every customer in it (was Feature B).
+  // orderStatus and box membership are never touched here — a batch always
+  // starts at "Dibeli dari Seller" and only Feature B (Box Management)
+  // can move it, since a box ships as one unit.
   saveBatch: (input: SaveBatchInput) => void
-  // Assigns one box number to many batches at once — the box is usually
-  // only known after a run of batches has already been recorded.
-  bulkSetBoxNumber: (batchIds: string[], boxNumber: string) => void
   // Deletes one or many batch records along with their items and bills.
   deleteBatches: (batchIds: string[]) => void
   setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
   simulateCustomerUploadBatch: (batchBillId: string) => void
   confirmBatchBill: (batchBillId: string) => void
   rejectBatchBill: (batchBillId: string) => void
+
+  // Feature B — Box Management. A box's status is the single source of
+  // truth for every batch inside it.
+  // Creates or edits a box's number/membership. Batches added to the box
+  // inherit its current status; batches removed from it fall back to
+  // "Dibeli dari Seller" (no box, no derived status).
+  saveBox: (input: SaveBoxInput) => void
+  // Changes a box's status and cascades it to every batch inside it.
+  setBoxStatus: (boxId: string, status: BoxStatus) => void
 
   // Feature C
   publishTaxBills: (
@@ -153,7 +169,7 @@ function syncBatchBillsForBatch(
       upnotesTotal: 0,
       bankAccount: DEFAULT_BANK_ACCOUNT,
       total: itemTotal,
-      status: 'Belum Dibayar',
+      status: 'Belum Bayar',
       createdAt: now,
     }
   })
@@ -174,6 +190,7 @@ export const useStore = create<StoreState>()(
     (set, get) => ({
       customers: seedCustomers,
       batches: seedBatches,
+      boxes: seedBoxes,
       items: seedItems,
       batchBills: seedBatchBills,
       taxBills: seedTaxBills,
@@ -200,17 +217,16 @@ export const useStore = create<StoreState>()(
         let newlyBilled = 0
 
         set((s) => {
+          const existing = s.batches.find((b) => b.id === batchId)
           const batch: Batch = {
             id: batchId,
             batchNumber: input.batchNumber,
-            boxNumber: input.boxNumber?.trim() || undefined,
+            boxNumber: existing?.boxNumber,
             orderIdWH: input.orderIdWH,
             orderType: input.orderType,
             photoDataUrls: input.photoDataUrls,
-            orderStatus: input.orderStatus,
-            createdAt: isEdit
-              ? (s.batches.find((b) => b.id === batchId)?.createdAt ?? now)
-              : now,
+            orderStatus: existing?.orderStatus ?? 'Dibeli dari Seller',
+            createdAt: isEdit ? (existing?.createdAt ?? now) : now,
             updatedAt: now,
           }
           const batches = isEdit
@@ -259,26 +275,78 @@ export const useStore = create<StoreState>()(
         )
       },
 
-      bulkSetBoxNumber: (batchIds, boxNumber) => {
-        const idSet = new Set(batchIds)
-        const now = new Date().toISOString()
-        set((s) => ({
-          batches: s.batches.map((b) =>
-            idSet.has(b.id) ? { ...b, boxNumber, updatedAt: now } : b,
-          ),
-        }))
-        get().pushToast(`Box number ${boxNumber} diterapkan ke ${batchIds.length} batch.`, 'success')
-      },
-
       deleteBatches: (batchIds) => {
         const idSet = new Set(batchIds)
         set((s) => ({
           batches: s.batches.filter((b) => !idSet.has(b.id)),
           items: s.items.filter((i) => !idSet.has(i.batchId)),
           batchBills: s.batchBills.filter((b) => !idSet.has(b.batchId)),
+          boxes: s.boxes.map((box) => ({
+            ...box,
+            batchIds: box.batchIds.filter((id) => !idSet.has(id)),
+          })),
         }))
         get().pushToast(
           batchIds.length > 1 ? `${batchIds.length} batch record dihapus.` : 'Batch record dihapus.',
+          'success',
+        )
+      },
+
+      saveBox: (input) => {
+        const now = new Date().toISOString()
+        const isEdit = Boolean(input.boxId)
+        const boxId = input.boxId ?? makeId('box')
+
+        set((s) => {
+          const existing = s.boxes.find((b) => b.id === boxId)
+          const status: BoxStatus = existing?.status ?? DEFAULT_BOX_STATUS
+          const box: Box = {
+            id: boxId,
+            boxNumber: input.boxNumber,
+            batchIds: input.batchIds,
+            status,
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+          }
+          const boxes = isEdit ? s.boxes.map((b) => (b.id === boxId ? box : b)) : [box, ...s.boxes]
+
+          const includedIds = new Set(input.batchIds)
+          const previouslyIncludedIds = new Set(existing?.batchIds ?? [])
+          const batches = s.batches.map((b) => {
+            if (includedIds.has(b.id)) {
+              return { ...b, boxNumber: box.boxNumber, orderStatus: status, updatedAt: now }
+            }
+            if (previouslyIncludedIds.has(b.id)) {
+              return { ...b, boxNumber: undefined, orderStatus: 'Dibeli dari Seller' as const, updatedAt: now }
+            }
+            return b
+          })
+
+          return { boxes, batches }
+        })
+
+        get().pushToast(isEdit ? 'Box berhasil diperbarui.' : 'Box baru berhasil dibuat.', 'success')
+      },
+
+      setBoxStatus: (boxId, status) => {
+        const now = new Date().toISOString()
+        let batchCount = 0
+
+        set((s) => {
+          const box = s.boxes.find((b) => b.id === boxId)
+          if (!box) return s
+          batchCount = box.batchIds.length
+          const includedIds = new Set(box.batchIds)
+          return {
+            boxes: s.boxes.map((b) => (b.id === boxId ? { ...b, status, updatedAt: now } : b)),
+            batches: s.batches.map((b) =>
+              includedIds.has(b.id) ? { ...b, orderStatus: status, updatedAt: now } : b,
+            ),
+          }
+        })
+
+        get().pushToast(
+          `Status box diperbarui menjadi "${status}" — ${batchCount} batch di dalamnya ikut diperbarui.`,
           'success',
         )
       },
@@ -306,18 +374,18 @@ export const useStore = create<StoreState>()(
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
-              ? { ...b, status: 'Dibayar' as BatchBillStatus, paidAt: new Date().toISOString() }
+              ? { ...b, status: 'Lunas' as BatchBillStatus, paidAt: new Date().toISOString() }
               : b,
           ),
         }))
-        get().pushToast('Pembayaran batch dikonfirmasi — status Dibayar.', 'success')
+        get().pushToast('Pembayaran batch dikonfirmasi — status Lunas.', 'success')
       },
 
       rejectBatchBill: (batchBillId) => {
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
-              ? { ...b, status: 'Belum Dibayar' as BatchBillStatus, buktiTransfer: undefined, paidAt: undefined }
+              ? { ...b, status: 'Belum Bayar' as BatchBillStatus, buktiTransfer: undefined, paidAt: undefined }
               : b,
           ),
         }))
@@ -395,21 +463,29 @@ export const useStore = create<StoreState>()(
     {
       name: 'go-aikatsu-admin-store-v2',
       // v1 introduced orderIdWH and switched photoDataUrl (single) to
-      // photoDataUrls (array) on Batch. v2 added itemIds to TaxBill.
-      // Browsers with data saved before either change need their
-      // persisted records backfilled, or reads like batch.photoDataUrls[0]
-      // or taxBill.itemIds.map(...) crash the app on load.
-      version: 2,
+      // photoDataUrls (array) on Batch. v2 added itemIds to TaxBill. v3
+      // introduced the Box entity (Feature B) and dropped "Menunggu
+      // Pembayaran ke Seller" from OrderStatus — box status is now the
+      // single source of truth for every batch inside it. v4 renamed
+      // BatchBillStatus to match TaxBillStatus's wording ("Belum Dibayar"
+      // → "Belum Bayar", "Dibayar" → "Lunas"). Browsers with data saved
+      // before any of these changes need their persisted records
+      // backfilled, or the app crashes reading fields that don't exist
+      // yet, or shows a status no longer in the option list.
+      version: 4,
       migrate: (persistedState) => {
         const state = persistedState as {
           batches?: Array<Record<string, unknown>>
+          boxes?: Array<Record<string, unknown>>
           taxBills?: Array<Record<string, unknown>>
+          batchBills?: Array<Record<string, unknown>>
         }
         if (state?.batches) {
           state.batches = state.batches.map((b) => ({
             ...b,
             orderIdWH: b.orderIdWH ?? '',
             photoDataUrls: b.photoDataUrls ?? (b.photoDataUrl ? [b.photoDataUrl] : []),
+            orderStatus: b.orderStatus === 'Menunggu Pembayaran ke Seller' ? 'Dibeli dari Seller' : b.orderStatus,
           }))
         }
         if (state?.taxBills) {
@@ -417,6 +493,41 @@ export const useStore = create<StoreState>()(
             ...t,
             itemIds: t.itemIds ?? [],
           }))
+        }
+        if (state?.batchBills) {
+          const BATCH_BILL_STATUS_RENAME: Record<string, string> = {
+            'Belum Dibayar': 'Belum Bayar',
+            Dibayar: 'Lunas',
+          }
+          state.batchBills = state.batchBills.map((b) => ({
+            ...b,
+            status: BATCH_BILL_STATUS_RENAME[b.status as string] ?? b.status,
+          }))
+        }
+        if (!state.boxes && state?.batches) {
+          // Reconstruct one Box per pre-existing boxNumber, best-effort:
+          // every batch in the group is forced onto the first batch's
+          // status so the new "one box, one status" invariant holds.
+          const byBoxNumber = new Map<string, Array<Record<string, unknown>>>()
+          for (const b of state.batches) {
+            const boxNumber = b.boxNumber as string | undefined
+            if (!boxNumber) continue
+            byBoxNumber.set(boxNumber, [...(byBoxNumber.get(boxNumber) ?? []), b])
+          }
+          state.boxes = Array.from(byBoxNumber.entries()).map(([boxNumber, batchesInBox]) => ({
+            id: `box_migrated_${boxNumber}`,
+            boxNumber,
+            batchIds: batchesInBox.map((b) => b.id as string),
+            status: (batchesInBox[0]?.orderStatus as string) ?? 'Di WH Jepang',
+            createdAt: (batchesInBox[0]?.createdAt as string) ?? new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }))
+          for (const box of state.boxes) {
+            const idsInBox = new Set(box.batchIds as string[])
+            state.batches = state.batches.map((b) =>
+              idsInBox.has(b.id as string) ? { ...b, orderStatus: box.status } : b,
+            )
+          }
         }
         return state
       },

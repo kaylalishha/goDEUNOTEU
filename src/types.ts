@@ -25,7 +25,6 @@ export type TipeKartu = (typeof TIPE_KARTU_OPTIONS)[number]
 // Order status reflects the parties named in the PRD executive summary
 // (Mercari Seller → WH Japan → Bea Cukai → WH Indonesia → Customer).
 export const ORDER_STATUS_OPTIONS = [
-  'Menunggu Pembayaran ke Seller',
   'Dibeli dari Seller',
   'Di WH Jepang',
   'Dikirim ke Indonesia',
@@ -35,13 +34,27 @@ export const ORDER_STATUS_OPTIONS = [
 ] as const
 export type OrderStatus = (typeof ORDER_STATUS_OPTIONS)[number]
 
+// A batch starts life at "Dibeli dari Seller" and stays there — uneditable
+// from Order Recap — until it's placed into a Box. From then on its status
+// is driven entirely by the Box's status (see Box below): a box ships as
+// one physical unit, so every batch inside it always shares one status.
+export const BOX_STATUS_OPTIONS = [
+  'Di WH Jepang',
+  'Dikirim ke Indonesia',
+  'Di Bea Cukai',
+  'Di WH Indonesia',
+  'Selesai',
+] as const
+export type BoxStatus = (typeof BOX_STATUS_OPTIONS)[number]
+export const DEFAULT_BOX_STATUS: BoxStatus = 'Di WH Jepang'
+
 export const ORDER_TYPE_OPTIONS = ['ReqShare', 'Admin', 'Persod'] as const
 export type OrderType = (typeof ORDER_TYPE_OPTIONS)[number]
 
 export const BATCH_BILL_STATUSES = [
-  'Belum Dibayar',
+  'Belum Bayar',
   'Menunggu Konfirmasi',
-  'Dibayar',
+  'Lunas',
 ] as const
 export type BatchBillStatus = (typeof BATCH_BILL_STATUSES)[number]
 
@@ -138,6 +151,19 @@ export interface TaxBill {
   deadline: string
   status: TaxBillStatus
   buktiTransfer?: BuktiTransfer
+}
+
+// A shipping box: the unit that actually travels WH Japan → Bea Cukai →
+// WH Indonesia. Groups the batches inside it and is the single source of
+// truth for their orderStatus — editing a box's status cascades to every
+// batch in batchIds.
+export interface Box {
+  id: string
+  boxNumber: string
+  batchIds: string[]
+  status: BoxStatus
+  createdAt: string
+  updatedAt: string
 }
 
 export interface EstimatorConfig {

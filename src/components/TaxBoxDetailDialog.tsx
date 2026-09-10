@@ -23,9 +23,7 @@ export function TaxBoxDetailDialog({
   const simulateCustomerUploadTax = useStore((s) => s.simulateCustomerUploadTax)
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<Set<string>>(
-    new Set(taxBills.filter((t) => t.status !== 'Lunas').map((t) => t.id)),
-  )
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
   if (taxBills.length === 0) return null
 
@@ -38,6 +36,9 @@ export function TaxBoxDetailDialog({
   )
   // Every batch under one box shares a single payment deadline.
   const boxDeadline = taxBills[0].deadline
+  const boxBatchNumbers = Array.from(
+    new Set(allBatches.filter((b) => b.boxNumber === boxNumber).map((b) => b.batchNumber)),
+  ).sort()
 
   function toggle(id: string) {
     setExpanded((set) => {
@@ -52,12 +53,17 @@ export function TaxBoxDetailDialog({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8">
       <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <h2 className="text-base font-bold text-rose-600">
-            {boxNumber} <span className="text-slate-400">🧾</span>{' '}
-            <span className="text-sm font-normal text-slate-400">
-              · Dipublikasikan {formatDate(publishedAt)}
-            </span>
-          </h2>
+          <div>
+            <h2 className="text-base font-bold text-rose-600">
+              {boxNumber} <span className="text-slate-400">🧾</span>{' '}
+              <span className="text-sm font-normal text-slate-400">
+                · Dipublikasikan {formatDate(publishedAt)}
+              </span>
+            </h2>
+            {boxBatchNumbers.length > 0 && (
+              <p className="mt-0.5 text-xs text-slate-400">Batches: {boxBatchNumbers.join(', ')}</p>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
@@ -189,85 +195,86 @@ export function TaxBoxDetailDialog({
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
                         Rincian per Batch
                       </p>
-                      <div className="flex flex-col gap-3">
-                        {batchIds.map((batchId) => {
-                          const batch = allBatches.find((b) => b.id === batchId)
-                          const itemsInBatch = billItems.filter((i) => i.batchId === batchId)
-                          const batchTaxTotal = itemsInBatch.reduce(
-                            (sum, i) =>
-                              sum +
-                              (i.tipeBarang === 'Kartu'
-                                ? KARTU_FLAT_TAX_IDR
-                                : t.nonKartuWeightGrams > 0
-                                  ? ((i.weightGrams ?? 0) / t.nonKartuWeightGrams) * t.nonKartuShare
-                                  : 0),
-                            0,
-                          )
-                          return (
-                            <div key={batchId} className="rounded-md border border-slate-100">
-                              <div className="flex flex-wrap items-center gap-2 bg-slate-50 px-3 py-2">
-                                {batch?.photoDataUrls?.[0] && (
-                                  <img
-                                    src={batch.photoDataUrls[0]}
-                                    alt="batch"
-                                    className="h-8 w-8 rounded object-cover"
-                                  />
-                                )}
-                                <span className="font-semibold text-rose-600">
-                                  {batch?.batchNumber ?? 'Batch dihapus'}
-                                </span>
-                                {batch && (
-                                  <>
-                                    <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-600">
-                                      {batch.orderType}
-                                    </span>
-                                    <StatusBadge status={batch.orderStatus} />
-                                    <span className="ml-auto text-xs text-slate-400">
-                                      {formatDate(batch.createdAt)}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
-                              <div className="overflow-x-auto">
-                                <table className="min-w-full text-sm">
-                                  <thead className="bg-white text-left text-xs uppercase tracking-wide text-slate-400">
-                                    <tr>
-                                      <th className="px-3 py-2">Tipe Barang</th>
-                                      <th className="px-3 py-2">Tipe Kartu</th>
-                                      <th className="px-3 py-2">Berat (gram)</th>
-                                      <th className="px-3 py-2 text-right">Pajak</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody className="divide-y divide-slate-100">
-                                    {itemsInBatch.map((i) => {
-                                      const itemTax =
-                                        i.tipeBarang === 'Kartu'
-                                          ? KARTU_FLAT_TAX_IDR
-                                          : t.nonKartuWeightGrams > 0
-                                            ? ((i.weightGrams ?? 0) / t.nonKartuWeightGrams) * t.nonKartuShare
-                                            : 0
-                                      return (
-                                        <tr key={i.id}>
-                                          <td className="px-3 py-2 text-slate-700">{i.tipeBarang}</td>
-                                          <td className="px-3 py-2 text-slate-500">{i.tipeKartu ?? '—'}</td>
-                                          <td className="px-3 py-2 text-slate-500">
-                                            {i.weightGrams ? `${i.weightGrams}g` : '—'}
-                                          </td>
-                                          <td className="px-3 py-2 text-right text-slate-700">
-                                            {formatIDR(itemTax)}
-                                          </td>
-                                        </tr>
-                                      )
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                              <div className="flex justify-end border-t border-slate-100 px-3 py-1.5 text-xs text-slate-500">
-                                Subtotal batch: <span className="ml-1 font-medium text-slate-700">{formatIDR(batchTaxTotal)}</span>
-                              </div>
-                            </div>
-                          )
-                        })}
+                      <div className="overflow-hidden rounded-lg border border-slate-200">
+                        <div className="overflow-x-auto">
+                          <table className="min-w-full text-sm">
+                            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-400">
+                              <tr>
+                                <th className="px-3 py-2">Batch</th>
+                                <th className="px-3 py-2">Items</th>
+                                <th className="px-3 py-2">Weight</th>
+                                <th className="px-3 py-2">Qty</th>
+                                <th className="px-3 py-2 text-right">Tax</th>
+                                <th className="px-3 py-2 text-right">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {batchIds.map((batchId) => {
+                                const batch = allBatches.find((b) => b.id === batchId)
+                                const itemsInBatch = billItems.filter((i) => i.batchId === batchId)
+                                const batchTaxTotal = itemsInBatch.reduce(
+                                  (sum, i) =>
+                                    sum +
+                                    (i.tipeBarang === 'Kartu'
+                                      ? KARTU_FLAT_TAX_IDR
+                                      : t.nonKartuWeightGrams > 0
+                                        ? ((i.weightGrams ?? 0) / t.nonKartuWeightGrams) * t.nonKartuShare
+                                        : 0),
+                                  0,
+                                )
+                                return (
+                                  <tr key={batchId}>
+                                    <td className="px-3 py-2 align-top font-semibold text-rose-600">
+                                      {batch?.batchNumber ?? 'Batch dihapus'}
+                                    </td>
+                                    <td className="px-3 py-2 align-top text-slate-700">
+                                      {itemsInBatch.map((i, idx) => (
+                                        <div key={i.id}>
+                                          {idx + 1}. {i.tipeBarang}
+                                          {i.tipeKartu ? ` (${i.tipeKartu})` : ''}
+                                        </div>
+                                      ))}
+                                    </td>
+                                    <td className="px-3 py-2 align-top text-slate-500">
+                                      {itemsInBatch.map((i) => (
+                                        <div key={i.id}>{i.weightGrams ? `${i.weightGrams}gr` : '—'}</div>
+                                      ))}
+                                    </td>
+                                    <td className="px-3 py-2 align-top text-slate-500">
+                                      {itemsInBatch.map((i) => (
+                                        <div key={i.id}>1</div>
+                                      ))}
+                                    </td>
+                                    <td className="px-3 py-2 align-top text-right text-slate-700">
+                                      {itemsInBatch.map((i) => {
+                                        const itemTax =
+                                          i.tipeBarang === 'Kartu'
+                                            ? KARTU_FLAT_TAX_IDR
+                                            : t.nonKartuWeightGrams > 0
+                                              ? ((i.weightGrams ?? 0) / t.nonKartuWeightGrams) * t.nonKartuShare
+                                              : 0
+                                        return <div key={i.id}>{formatIDR(itemTax)}</div>
+                                      })}
+                                    </td>
+                                    <td className="px-3 py-2 align-top text-right font-medium text-slate-800">
+                                      {formatIDR(batchTaxTotal)}
+                                    </td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t-2 border-slate-300">
+                                <td colSpan={5} className="px-3 py-2 text-right font-semibold text-slate-700">
+                                  Total
+                                </td>
+                                <td className="px-3 py-2 text-right font-semibold text-slate-900">
+                                  {formatIDR(t.total)}
+                                </td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
                       </div>
                     </div>
                   )}

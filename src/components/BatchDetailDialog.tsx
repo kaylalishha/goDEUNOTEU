@@ -32,7 +32,7 @@ export function BatchDetailDialog({
     new Set(
       Array.from(new Set(items.map((i) => i.customerId))).filter((customerId) => {
         const bill = batchBills.find((b) => b.customerId === customerId)
-        return !bill || bill.status !== 'Dibayar'
+        return !bill || bill.status !== 'Lunas'
       }),
     ),
   )
@@ -156,7 +156,7 @@ export function BatchDetailDialog({
                     >
                       <span className="font-semibold text-rose-600">{getCustomerName(customerId)}</span>
                       <span className="flex items-center gap-2">
-                        <StatusBadge status={bill?.status ?? 'Belum Dibayar'} />
+                        <StatusBadge status={bill?.status ?? 'Belum Bayar'} />
                         <span className="text-slate-400">{isOpen ? '︿' : '﹀'}</span>
                       </span>
                     </button>
@@ -229,7 +229,7 @@ export function BatchDetailDialog({
                           </div>
                         )}
 
-                        {bill && bill.status === 'Belum Dibayar' && (
+                        {bill && bill.status === 'Belum Bayar' && (
                           <div className="mb-3 flex justify-end">
                             <button
                               onClick={() => simulateCustomerUploadBatch(bill.id)}

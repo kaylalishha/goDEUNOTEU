@@ -30,9 +30,11 @@ export default function TaxBills() {
   const taxBills = useStore((s) => s.taxBills)
   const publishTaxBills = useStore((s) => s.publishTaxBills)
   const setItemWeights = useStore((s) => s.setItemWeights)
+  const getCustomerName = useStore((s) => s.getCustomerName)
 
   const [formOpen, setFormOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<TaxBillStatus | ''>('')
+  const [customerQuery, setCustomerQuery] = useState('')
   const [viewingBoxNumber, setViewingBoxNumber] = useState<string | null>(null)
 
   const boxOptions = useMemo(
@@ -83,9 +85,17 @@ export default function TaxBills() {
     })
   }, [taxBills])
 
-  const filteredBoxes = statusFilter
-    ? boxGroups.filter((g) => g.counts[statusFilter] > 0)
-    : boxGroups
+  const normalizedQuery = customerQuery.trim().toLowerCase()
+  const filteredBoxes = boxGroups.filter((g) => {
+    if (statusFilter && g.counts[statusFilter] === 0) return false
+    if (normalizedQuery) {
+      const hasMatchingCustomer = g.bills.some((b) =>
+        getCustomerName(b.customerId).toLowerCase().includes(normalizedQuery),
+      )
+      if (!hasMatchingCustomer) return false
+    }
+    return true
+  })
   const sortedBoxes = [...filteredBoxes].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
 
   const counts = TAX_BILL_STATUSES.reduce<Record<string, number>>((acc, s) => {
@@ -93,6 +103,18 @@ export default function TaxBills() {
     return acc
   }, {})
   const overdueCount = taxBills.filter((t) => t.status !== 'Lunas' && daysRemaining(t.deadline) < 0).length
+
+  // A pending confirmation outranks "how many are paid/unpaid" until it's
+  // resolved — same rule as the batch Payment column on Order Recap.
+  function statusPillsFor(group: BoxGroup): Array<[TaxBillStatus, number]> {
+    if (group.counts['Menunggu Konfirmasi'] > 0) {
+      return [['Menunggu Konfirmasi', group.counts['Menunggu Konfirmasi']]]
+    }
+    return TAX_BILL_STATUSES.filter((s) => s !== 'Menunggu Konfirmasi' && group.counts[s] > 0).map((s) => [
+      s,
+      group.counts[s],
+    ])
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -118,30 +140,68 @@ export default function TaxBills() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => setStatusFilter('')}
-          className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
-            statusFilter === '' ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-600 ring-slate-200'
-          }`}
-        >
-          Semua ({taxBills.length})
-        </button>
-        {TAX_BILL_STATUSES.map((s) => (
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
+            onClick={() => setStatusFilter('')}
             className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
-              statusFilter === s ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-600 ring-slate-200'
+              statusFilter === '' ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-600 ring-slate-200'
             }`}
           >
-            {s} ({counts[s]})
+            Semua ({taxBills.length})
           </button>
-        ))}
+          {TAX_BILL_STATUSES.map((s) => {
+            const isPending = s === 'Menunggu Konfirmasi'
+            return (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`relative rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
+                  statusFilter === s
+                    ? 'bg-slate-900 text-white ring-slate-900'
+                    : 'bg-white text-slate-600 ring-slate-200'
+                }`}
+              >
+                {isPending ? s : `${s} (${counts[s]})`}
+                {isPending && counts[s] > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+                    {counts[s]}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+        <div className="relative w-full max-w-xs sm:w-64">
+          <input
+            type="text"
+            value={customerQuery}
+            onChange={(e) => setCustomerQuery(e.target.value)}
+            placeholder="Cari nama customer…"
+            aria-label="Cari nama customer"
+            className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+          />
+          {customerQuery && (
+            <button
+              type="button"
+              onClick={() => setCustomerQuery('')}
+              aria-label="Hapus pencarian"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {sortedBoxes.length === 0 ? (
-        <EmptyState message="Belum ada tagihan pajak yang dipublikasikan." />
+        <EmptyState
+          message={
+            taxBills.length === 0
+              ? 'Belum ada tagihan pajak yang dipublikasikan.'
+              : 'Tidak ada box yang cocok dengan filter/pencarian ini.'
+          }
+        />
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
           <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -156,23 +216,31 @@ export default function TaxBills() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sortedBoxes.map((group) => (
+              {sortedBoxes.map((group) => {
+                const hasPendingConfirmation = group.counts['Menunggu Konfirmasi'] > 0
+                return (
                 <tr
                   key={group.boxNumber}
                   className="cursor-pointer hover:bg-slate-50"
                   onClick={() => setViewingBoxNumber(group.boxNumber)}
                 >
-                  <td className="px-4 py-3 font-medium text-slate-900">{group.boxNumber}</td>
+                  <td
+                    className={`border-l-4 px-4 py-3 font-medium text-slate-900 ${
+                      hasPendingConfirmation ? 'border-amber-400' : 'border-transparent'
+                    }`}
+                  >
+                    {group.boxNumber}
+                  </td>
                   <td className="px-4 py-3 font-semibold text-slate-900">{formatIDR(group.total)}</td>
                   <td className="px-4 py-3 text-slate-700">{group.bills.length} customer</td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {TAX_BILL_STATUSES.filter((s) => group.counts[s] > 0).map((s) => (
+                      {statusPillsFor(group).map(([s, count]) => (
                         <span
                           key={s}
                           className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_PILL_TONE[s]}`}
                         >
-                          {group.counts[s]} {s}
+                          {count} {s}
                         </span>
                       ))}
                     </div>
@@ -188,7 +256,8 @@ export default function TaxBills() {
                     )}
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

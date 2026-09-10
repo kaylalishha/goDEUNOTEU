@@ -41,16 +41,18 @@ function Stat({ label, value, tone }: { label: string; value: string | number; t
 
 export default function Overview() {
   const batches = useStore((s) => s.batches)
+  const boxes = useStore((s) => s.boxes)
   const batchBills = useStore((s) => s.batchBills)
   const taxBills = useStore((s) => s.taxBills)
   const estimatorConfig = useStore((s) => s.estimatorConfig)
   const getCustomerName = useStore((s) => s.getCustomerName)
 
   const batchesMissingPhoto = batches.filter((b) => (b.photoDataUrls ?? []).length === 0).length
+  const batchesWithoutBox = batches.filter((b) => !b.boxNumber).length
 
-  const bbBelumDibayar = batchBills.filter((b) => b.status === 'Belum Dibayar').length
+  const bbBelumBayar = batchBills.filter((b) => b.status === 'Belum Bayar').length
   const bbMenunggu = batchBills.filter((b) => b.status === 'Menunggu Konfirmasi').length
-  const bbDibayar = batchBills.filter((b) => b.status === 'Dibayar').length
+  const bbLunas = batchBills.filter((b) => b.status === 'Lunas').length
 
   const overdueTax = taxBills.filter(
     (t) => t.status !== 'Lunas' && daysRemaining(t.deadline) < 0,
@@ -107,13 +109,26 @@ export default function Overview() {
             value={batchesMissingPhoto}
             tone={batchesMissingPhoto > 0 ? 'warning' : undefined}
           />
-          <Stat label="Belum Dibayar" value={bbBelumDibayar} tone={bbBelumDibayar > 0 ? 'danger' : undefined} />
+          <Stat label="Belum Bayar" value={bbBelumBayar} tone={bbBelumBayar > 0 ? 'danger' : undefined} />
           <Stat
             label="Menunggu Konfirmasi"
             value={bbMenunggu}
             tone={bbMenunggu > 0 ? 'warning' : undefined}
           />
-          <Stat label="Dibayar" value={bbDibayar} />
+          <Stat label="Lunas" value={bbLunas} />
+        </Card>
+
+        <Card
+          title="B · Box Management"
+          question="Which batches are grouped into which box, and what's each box's current status?"
+          to="/boxes"
+        >
+          <Stat label="Total box" value={boxes.length} />
+          <Stat
+            label="Batch belum masuk box"
+            value={batchesWithoutBox}
+            tone={batchesWithoutBox > 0 ? 'warning' : undefined}
+          />
         </Card>
 
         <Card

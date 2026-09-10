@@ -1,4 +1,4 @@
-import type { Batch, BatchBill, Customer, EstimatorConfig, Item, TaxBill } from '../types'
+import type { Batch, BatchBill, Box, Customer, EstimatorConfig, Item, TaxBill } from '../types'
 
 const PLACEHOLDER_RECEIPT =
   'data:image/svg+xml;utf8,' +
@@ -73,12 +73,13 @@ export const seedBatches: Batch[] = [
   {
     id: 'batch_03',
     batchNumber: 'BATCH-03',
-    // demonstrates a batch recorded before its box is known — box number
-    // is optional and can be filled in later, during reconciliation
+    // demonstrates a batch recorded before its box is known — a batch
+    // stays at "Dibeli dari Seller" until Box Management (Feature B)
+    // places it into a box, which is what actually advances its status
     orderIdWH: 'WH-2026-0003',
     orderType: 'Persod',
     photoDataUrls: [],
-    orderStatus: 'Menunggu Pembayaran ke Seller',
+    orderStatus: 'Dibeli dari Seller',
     createdAt: daysAgoIso(1),
     updatedAt: daysAgoIso(1),
   },
@@ -97,11 +98,11 @@ export const seedBatches: Batch[] = [
     id: 'batch_05',
     batchNumber: 'BATCH-05',
     // still no box — most batches sit here until a run is reconciled and
-    // bulk-assigned to a box together (see the "Set Box Number" action)
+    // grouped into a box together via the Box Management page
     orderIdWH: 'WH-2026-0005',
     orderType: 'Admin',
     photoDataUrls: [],
-    orderStatus: 'Dikirim ke Indonesia',
+    orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(6),
     updatedAt: hoursAgoIso(6),
   },
@@ -111,7 +112,7 @@ export const seedBatches: Batch[] = [
     orderIdWH: 'WH-2026-0006',
     orderType: 'ReqShare',
     photoDataUrls: [],
-    orderStatus: 'Dikirim ke Indonesia',
+    orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(5),
     updatedAt: hoursAgoIso(5),
   },
@@ -121,7 +122,7 @@ export const seedBatches: Batch[] = [
     orderIdWH: 'WH-2026-0007',
     orderType: 'Persod',
     photoDataUrls: [],
-    orderStatus: 'Di WH Jepang',
+    orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(4),
     updatedAt: hoursAgoIso(4),
   },
@@ -131,7 +132,7 @@ export const seedBatches: Batch[] = [
     orderIdWH: 'WH-2026-0008',
     orderType: 'ReqShare',
     photoDataUrls: [],
-    orderStatus: 'Di WH Jepang',
+    orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(3),
     updatedAt: hoursAgoIso(3),
   },
@@ -151,9 +152,28 @@ export const seedBatches: Batch[] = [
     orderIdWH: 'WH-2026-0010',
     orderType: 'ReqShare',
     photoDataUrls: [],
-    orderStatus: 'Menunggu Pembayaran ke Seller',
+    orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(1),
     updatedAt: hoursAgoIso(1),
+  },
+]
+
+export const seedBoxes: Box[] = [
+  {
+    id: 'box_001',
+    boxNumber: 'BOX-001',
+    batchIds: ['batch_01'],
+    status: 'Di WH Indonesia',
+    createdAt: daysAgoIso(10),
+    updatedAt: daysAgoIso(9),
+  },
+  {
+    id: 'box_002',
+    boxNumber: 'BOX-002',
+    batchIds: ['batch_02', 'batch_04'],
+    status: 'Di Bea Cukai',
+    createdAt: daysAgoIso(4),
+    updatedAt: hoursAgoIso(7),
   },
 ]
 
@@ -320,7 +340,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 5000,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 96000 + 180000 + 5000,
-    status: 'Dibayar',
+    status: 'Lunas',
     createdAt: daysAgoIso(10),
     paidAt: daysAgoIso(9),
     buktiTransfer: {
@@ -357,7 +377,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 252000 + 108000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: daysAgoIso(9),
   },
   {
@@ -369,7 +389,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 312000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: daysAgoIso(4),
   },
   {
@@ -381,7 +401,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 84000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: daysAgoIso(4),
   },
   {
@@ -393,7 +413,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 60000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: daysAgoIso(1),
   },
   {
@@ -405,7 +425,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 45000,
-    status: 'Dibayar',
+    status: 'Lunas',
     createdAt: hoursAgoIso(7),
     paidAt: hoursAgoIso(2),
     buktiTransfer: {
@@ -442,7 +462,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 96000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(5),
   },
   {
@@ -454,7 +474,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 210000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(4),
   },
   {
@@ -466,7 +486,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 330000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(3),
   },
   {
@@ -478,7 +498,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 88000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(2),
   },
   {
@@ -490,7 +510,7 @@ export const seedBatchBills: BatchBill[] = [
     upnotesTotal: 0,
     bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
     total: 275000,
-    status: 'Belum Dibayar',
+    status: 'Belum Bayar',
     createdAt: hoursAgoIso(1),
   },
 ]
