@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
 import { TaxCalculationForm } from '../components/TaxCalculationForm'
 import { TaxBoxDetailDialog } from '../components/TaxBoxDetailDialog'
 import { DeadlineBadge } from '../components/DeadlineBadge'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState } from '../components/EmptyState'
 import { daysRemaining, formatDate, formatIDR } from '../lib/format'
 import { TAX_BILL_STATUSES, type TaxBill, type TaxBillStatus } from '../types'
@@ -31,11 +32,15 @@ export default function TaxBills() {
   const publishTaxBills = useStore((s) => s.publishTaxBills)
   const setItemWeights = useStore((s) => s.setItemWeights)
   const getCustomerName = useStore((s) => s.getCustomerName)
+  const deleteTaxBills = useStore((s) => s.deleteTaxBills)
 
   const [formOpen, setFormOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<TaxBillStatus | ''>('')
   const [customerQuery, setCustomerQuery] = useState('')
   const [viewingBoxNumber, setViewingBoxNumber] = useState<string | null>(null)
+  const [selectedBoxNumbers, setSelectedBoxNumbers] = useState<Set<string>>(new Set())
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const selectAllRef = useRef<HTMLInputElement>(null)
 
   const boxOptions = useMemo(
     () => Array.from(new Set(batches.map((b) => b.boxNumber).filter(Boolean))) as string[],
@@ -97,6 +102,47 @@ export default function TaxBills() {
     return true
   })
   const sortedBoxes = [...filteredBoxes].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+
+  const selectedInView = sortedBoxes.filter((g) => selectedBoxNumbers.has(g.boxNumber)).length
+  const allInViewSelected = sortedBoxes.length > 0 && selectedInView === sortedBoxes.length
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = selectedInView > 0 && !allInViewSelected
+    }
+  }, [selectedInView, allInViewSelected])
+
+  function toggleSelected(boxNumber: string) {
+    setSelectedBoxNumbers((prev) => {
+      const next = new Set(prev)
+      if (next.has(boxNumber)) next.delete(boxNumber)
+      else next.add(boxNumber)
+      return next
+    })
+  }
+
+  function handleSelectAllToggle() {
+    setSelectedBoxNumbers((prev) => {
+      const next = new Set(prev)
+      if (allInViewSelected) {
+        sortedBoxes.forEach((g) => next.delete(g.boxNumber))
+      } else {
+        sortedBoxes.forEach((g) => next.add(g.boxNumber))
+      }
+      return next
+    })
+  }
+
+  const selectedBills = boxGroups
+    .filter((g) => selectedBoxNumbers.has(g.boxNumber))
+    .flatMap((g) => g.bills)
+  const selectedResolvedBillCount = selectedBills.filter((b) => b.status !== 'Belum Bayar').length
+
+  function handleBulkDeleteConfirm() {
+    deleteTaxBills(selectedBills.map((b) => b.id))
+    setSelectedBoxNumbers(new Set())
+    setBulkDeleteConfirmOpen(false)
+  }
 
   const counts = TAX_BILL_STATUSES.reduce<Record<string, number>>((acc, s) => {
     acc[s] = taxBills.filter((t) => t.status === s).length
@@ -194,6 +240,26 @@ export default function TaxBills() {
         </div>
       </div>
 
+      {selectedBoxNumbers.size > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+          <span className="text-sm font-medium text-rose-700">{selectedBoxNumbers.size} box dipilih</span>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setBulkDeleteConfirmOpen(true)}
+              className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setSelectedBoxNumbers(new Set())}
+              className="text-xs font-medium text-rose-600 hover:underline"
+            >
+              Batalkan pilihan
+            </button>
+          </div>
+        </div>
+      )}
+
       {sortedBoxes.length === 0 ? (
         <EmptyState
           message={
@@ -207,6 +273,16 @@ export default function TaxBills() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
+                <th className="w-10 px-4 py-3">
+                  <input
+                    ref={selectAllRef}
+                    type="checkbox"
+                    checked={allInViewSelected}
+                    onChange={handleSelectAllToggle}
+                    aria-label="Pilih semua box yang tampil"
+                    className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-400"
+                  />
+                </th>
                 <th className="px-4 py-3">Box</th>
                 <th className="px-4 py-3">Total Pajak</th>
                 <th className="px-4 py-3">Customer</th>
@@ -221,9 +297,24 @@ export default function TaxBills() {
                 return (
                 <tr
                   key={group.boxNumber}
-                  className="cursor-pointer hover:bg-slate-50"
+                  className={`cursor-pointer hover:bg-slate-50 ${
+                    selectedBoxNumbers.has(group.boxNumber) ? 'bg-rose-50/60' : ''
+                  }`}
                   onClick={() => setViewingBoxNumber(group.boxNumber)}
                 >
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedBoxNumbers.has(group.boxNumber)}
+                      onChange={() => {}}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        toggleSelected(group.boxNumber)
+                      }}
+                      aria-label={`Pilih box ${group.boxNumber}`}
+                      className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-400"
+                    />
+                  </td>
                   <td
                     className={`border-l-4 px-4 py-3 font-medium text-slate-900 ${
                       hasPendingConfirmation ? 'border-amber-400' : 'border-transparent'
@@ -279,6 +370,20 @@ export default function TaxBills() {
 
       {viewingBoxNumber && (
         <TaxBoxDetailDialog boxNumber={viewingBoxNumber} onClose={() => setViewingBoxNumber(null)} />
+      )}
+
+      {bulkDeleteConfirmOpen && (
+        <ConfirmDialog
+          title={`Hapus Tagihan Pajak untuk ${selectedBoxNumbers.size} Box?`}
+          message={
+            `Tindakan ini tidak bisa dibatalkan — semua tagihan pajak yang dipublikasikan untuk box yang dipilih akan ikut terhapus.` +
+            (selectedResolvedBillCount > 0
+              ? ` ${selectedResolvedBillCount} tagihan di antaranya sudah dibayar/menunggu konfirmasi.`
+              : '')
+          }
+          onConfirm={handleBulkDeleteConfirm}
+          onCancel={() => setBulkDeleteConfirmOpen(false)}
+        />
       )}
     </div>
   )

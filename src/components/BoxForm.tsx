@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { formatDate } from '../lib/format'
 import { BOX_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
 import type { SaveBoxInput } from '../store/useStore'
-import type { Batch, Box } from '../types'
+import { BOX_STATUS_OPTIONS, DEFAULT_BOX_STATUS, type Batch, type Box, type BoxStatus } from '../types'
 
 export function BoxForm({
   boxes,
@@ -28,6 +28,7 @@ export function BoxForm({
   const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(
     new Set(initial?.batchIds ?? []),
   )
+  const [status, setStatus] = useState<BoxStatus>(initial?.status ?? DEFAULT_BOX_STATUS)
   const [error, setError] = useState<string | null>(null)
 
   // A batch can only be in one box at a time — offer batches with no box
@@ -66,38 +67,68 @@ export function BoxForm({
       boxId: initial?.id,
       boxNumber: formatted,
       batchIds: Array.from(selectedBatchIds),
+      status,
     })
   }
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-      <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700">
-          Box Number <span className="text-rose-500">*</span>
-        </label>
-        <div className="flex max-w-xs items-stretch gap-2">
-          <span className="flex items-center whitespace-nowrap rounded-md border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-500">
-            {BOX_NUMBER_PREFIX} -
-          </span>
-          <input
-            type="number"
-            min={1}
-            step={1}
-            autoFocus
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
-            value={boxNumberValue}
-            onChange={(e) => {
-              setBoxNumberValue(e.target.value === '' ? '' : Math.trunc(Number(e.target.value)))
-              setError(null)
-            }}
-            placeholder="001"
-          />
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Box Number <span className="text-rose-500">*</span>
+          </label>
+          <div className="flex items-stretch gap-2">
+            <span className="flex items-center whitespace-nowrap rounded-md border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-500">
+              {BOX_NUMBER_PREFIX} -
+            </span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              autoFocus
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+              value={boxNumberValue}
+              onChange={(e) => {
+                setBoxNumberValue(e.target.value === '' ? '' : Math.trunc(Number(e.target.value)))
+                setError(null)
+              }}
+              placeholder="001"
+            />
+          </div>
         </div>
-        {!initial && (
-          <p className="mt-1 text-xs text-slate-400">
-            Status default box baru: <span className="font-medium text-slate-600">Di WH Jepang</span> —
-            bisa diubah setelah box dibuat, dari halaman Box Management.
-          </p>
+
+        {initial ? (
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Status</label>
+            <select
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as BoxStatus)}
+            >
+              {BOX_STATUS_OPTIONS.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div>
+            <span className="mb-1 block text-sm font-medium text-slate-700">Status</span>
+            <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">
+              {DEFAULT_BOX_STATUS} <span className="text-xs text-slate-400">(bisa diubah setelah dibuat)</span>
+            </p>
+          </div>
+        )}
+
+        {initial && (
+          <div>
+            <span className="mb-1 block text-sm font-medium text-slate-700">Created At</span>
+            <p className="rounded-md bg-slate-50 px-3 py-2 text-sm text-slate-500">
+              {formatDate(initial.createdAt)}
+            </p>
+          </div>
         )}
       </div>
 

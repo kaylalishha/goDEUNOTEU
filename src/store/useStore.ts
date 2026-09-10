@@ -62,6 +62,7 @@ export interface SaveBoxInput {
   boxId?: string
   boxNumber: string
   batchIds: string[]
+  status?: BoxStatus
 }
 
 interface StoreState {
@@ -96,12 +97,15 @@ interface StoreState {
 
   // Feature B — Box Management. A box's status is the single source of
   // truth for every batch inside it.
-  // Creates or edits a box's number/membership. Batches added to the box
-  // inherit its current status; batches removed from it fall back to
-  // "Dibeli dari Seller" (no box, no derived status).
+  // Creates or edits a box's number, status, and membership in one go.
+  // Batches added to the box inherit its (possibly newly set) status;
+  // batches removed from it fall back to "Dibeli dari Seller" (no box,
+  // no derived status).
   saveBox: (input: SaveBoxInput) => void
-  // Changes a box's status and cascades it to every batch inside it.
-  setBoxStatus: (boxId: string, status: BoxStatus) => void
+  // Deletes one or many boxes. Every batch that was inside a deleted box
+  // is released back to unboxed ("Dibeli dari Seller"), same as removing
+  // it from the box via saveBox.
+  deleteBoxes: (boxIds: string[]) => void
 
   // Feature C
   publishTaxBills: (
@@ -112,6 +116,8 @@ interface StoreState {
   simulateCustomerUploadTax: (taxBillId: string) => void
   confirmTaxBill: (taxBillId: string) => void
   rejectTaxBill: (taxBillId: string) => void
+  // Deletes one or many published tax bills (eg. undoing a publish).
+  deleteTaxBills: (taxBillIds: string[]) => void
 
   // Feature D
   updateEstimatorConfig: (patch: Partial<Omit<EstimatorConfig, 'updatedAt'>>) => void
@@ -299,7 +305,7 @@ export const useStore = create<StoreState>()(
 
         set((s) => {
           const existing = s.boxes.find((b) => b.id === boxId)
-          const status: BoxStatus = existing?.status ?? DEFAULT_BOX_STATUS
+          const status: BoxStatus = input.status ?? existing?.status ?? DEFAULT_BOX_STATUS
           const box: Box = {
             id: boxId,
             boxNumber: input.boxNumber,
@@ -328,27 +334,23 @@ export const useStore = create<StoreState>()(
         get().pushToast(isEdit ? 'Box berhasil diperbarui.' : 'Box baru berhasil dibuat.', 'success')
       },
 
-      setBoxStatus: (boxId, status) => {
+      deleteBoxes: (boxIds) => {
+        const idSet = new Set(boxIds)
         const now = new Date().toISOString()
-        let batchCount = 0
-
         set((s) => {
-          const box = s.boxes.find((b) => b.id === boxId)
-          if (!box) return s
-          batchCount = box.batchIds.length
-          const includedIds = new Set(box.batchIds)
+          const affectedBatchIds = new Set(
+            s.boxes.filter((b) => idSet.has(b.id)).flatMap((b) => b.batchIds),
+          )
           return {
-            boxes: s.boxes.map((b) => (b.id === boxId ? { ...b, status, updatedAt: now } : b)),
+            boxes: s.boxes.filter((b) => !idSet.has(b.id)),
             batches: s.batches.map((b) =>
-              includedIds.has(b.id) ? { ...b, orderStatus: status, updatedAt: now } : b,
+              affectedBatchIds.has(b.id)
+                ? { ...b, boxNumber: undefined, orderStatus: 'Dibeli dari Seller' as const, updatedAt: now }
+                : b,
             ),
           }
         })
-
-        get().pushToast(
-          `Status box diperbarui menjadi "${status}" — ${batchCount} batch di dalamnya ikut diperbarui.`,
-          'success',
-        )
+        get().pushToast(boxIds.length > 1 ? `${boxIds.length} box dihapus.` : 'Box dihapus.', 'success')
       },
 
       setItemWeights: (weights) => {
@@ -451,6 +453,15 @@ export const useStore = create<StoreState>()(
           ),
         }))
         get().pushToast('Bukti transfer pajak ditolak — customer diminta upload ulang.', 'error')
+      },
+
+      deleteTaxBills: (taxBillIds) => {
+        const idSet = new Set(taxBillIds)
+        set((s) => ({ taxBills: s.taxBills.filter((t) => !idSet.has(t.id)) }))
+        get().pushToast(
+          taxBillIds.length > 1 ? `${taxBillIds.length} tagihan pajak dihapus.` : 'Tagihan pajak dihapus.',
+          'success',
+        )
       },
 
       updateEstimatorConfig: (patch) => {
