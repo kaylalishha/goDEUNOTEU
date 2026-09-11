@@ -330,9 +330,9 @@ export default function TaxBills() {
                 return (
                 <tr
                   key={group.boxNumber}
-                  className={`cursor-pointer hover:bg-slate-50 ${
-                    selectedBoxNumbers.has(group.boxNumber) ? 'bg-rose-50/60' : ''
-                  }`}
+                  className={`cursor-pointer border-l-4 hover:bg-slate-50 ${
+                    hasPendingConfirmation ? 'border-amber-400' : 'border-transparent'
+                  } ${selectedBoxNumbers.has(group.boxNumber) ? 'bg-rose-50/60' : ''}`}
                   onClick={() => setViewingBoxNumber(group.boxNumber)}
                 >
                   <td className="px-4 py-3">
@@ -348,13 +348,7 @@ export default function TaxBills() {
                       className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-400"
                     />
                   </td>
-                  <td
-                    className={`border-l-4 px-4 py-3 font-medium text-slate-900 ${
-                      hasPendingConfirmation ? 'border-amber-400' : 'border-transparent'
-                    }`}
-                  >
-                    {group.boxNumber}
-                  </td>
+                  <td className="px-4 py-3 font-medium text-slate-900">{group.boxNumber}</td>
                   <td className="px-4 py-3 font-semibold text-slate-900">{formatIDR(group.total)}</td>
                   <td className="px-4 py-3 text-slate-700">{group.bills.length} customer</td>
                   <td className="px-4 py-3">
