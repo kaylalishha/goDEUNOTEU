@@ -27,7 +27,7 @@ import type {
   TipeBarang,
   TipeKartu,
 } from '../types'
-import { DEFAULT_BOX_STATUS, PAYMENT_METHOD_OPTIONS, TAX_PAYMENT_WINDOW_DAYS } from '../types'
+import { DEFAULT_BOX_STATUS, PAYMENT_METHOD_OPTIONS } from '../types'
 
 const DEFAULT_BANK_ACCOUNT = 'BCA 1234567890 a.n. Admin GO Aikatsu'
 
@@ -114,10 +114,16 @@ interface StoreState {
   deleteBoxes: (boxIds: string[]) => void
 
   // Feature C
+  // `deadline` is admin-chosen at publish time (pre-filled with a +7-day
+  // suggestion by the caller, not forced) rather than always computed as
+  // publish date + 7 days — real deadlines vary per box. If the box
+  // already had bills published, every existing bill in it is synced to
+  // this same deadline too, since a box only ever has one.
   publishTaxBills: (
     bills: Array<
       Omit<TaxBill, 'id' | 'publishedAt' | 'deadline' | 'status' | 'buktiTransfer'>
     >,
+    deadline: string,
   ) => void
   simulateCustomerUploadTax: (taxBillId: string) => void
   confirmTaxBill: (taxBillId: string) => void
@@ -128,6 +134,10 @@ interface StoreState {
   // box total to "follow" the edit. Refused once the bill is Lunas —
   // settled payments don't get silently rewritten.
   updateTaxBillAmount: (taxBillId: string, total: number) => void
+  // Changes a box's shared payment deadline, applied to every tax bill in
+  // it at once — deadline isn't a payment-sensitive field the way total
+  // is, so this stays editable regardless of any bill's status.
+  updateBoxDeadline: (boxNumber: string, deadline: string) => void
   // Deletes one or many published tax bills — but only the ones still
   // Belum Bayar (see src/lib/deleteGuards.ts). A Lunas or Menunggu
   // Konfirmasi bill is a real financial record, not undone by a delete.
@@ -436,30 +446,24 @@ export const useStore = create<StoreState>()(
         get().pushToast('Bukti transfer ditolak — customer diminta upload ulang.', 'error')
       },
 
-      publishTaxBills: (bills) => {
+      publishTaxBills: (bills, deadline) => {
         const nowIso = new Date().toISOString()
         set((s) => {
-          const newBills: TaxBill[] = bills.map((b) => {
-            // Every batch under one box shares a single payment deadline —
-            // if this box was already published before, new customers
-            // added to it later inherit that same deadline rather than
-            // getting a fresh 7-day window from today.
-            const existingForBox = s.taxBills.find((t) => t.boxNumber === b.boxNumber)
-            let deadlineIso = existingForBox?.deadline
-            if (!deadlineIso) {
-              const d = new Date(nowIso)
-              d.setDate(d.getDate() + TAX_PAYMENT_WINDOW_DAYS)
-              deadlineIso = d.toISOString()
-            }
-            return {
-              ...b,
-              id: makeId('tbill'),
-              publishedAt: nowIso,
-              deadline: deadlineIso,
-              status: 'Belum Bayar',
-            }
-          })
-          return { taxBills: [...newBills, ...s.taxBills] }
+          const newBills: TaxBill[] = bills.map((b) => ({
+            ...b,
+            id: makeId('tbill'),
+            publishedAt: nowIso,
+            deadline,
+            status: 'Belum Bayar',
+          }))
+          // Every batch under one box shares a single payment deadline — if
+          // this box already had bills published, keep them synced to
+          // whatever deadline was just chosen for the new ones.
+          const boxNumbersTouched = new Set(bills.map((b) => b.boxNumber))
+          const existingBills = s.taxBills.map((t) =>
+            boxNumbersTouched.has(t.boxNumber) ? { ...t, deadline } : t,
+          )
+          return { taxBills: [...newBills, ...existingBills] }
         })
         get().pushToast(
           `Tagihan pajak box ${bills[0]?.boxNumber ?? ''} diterbitkan ke ${bills.length} customer. Notifikasi terkirim.`,
@@ -518,6 +522,15 @@ export const useStore = create<StoreState>()(
         } else {
           get().pushToast('Jumlah tagihan pajak diperbarui.', 'success')
         }
+      },
+
+      updateBoxDeadline: (boxNumber, deadline) => {
+        set((s) => ({
+          taxBills: s.taxBills.map((t) =>
+            t.boxNumber === boxNumber ? { ...t, deadline } : t,
+          ),
+        }))
+        get().pushToast(`Deadline pembayaran box ${boxNumber} diperbarui.`, 'success')
       },
 
       deleteTaxBills: (taxBillIds) => {

@@ -61,6 +61,10 @@ export default function TaxBills() {
     return new Set(taxBills.filter((t) => t.boxNumber === boxNumber).map((t) => t.customerId))
   }
 
+  function boxDeadlineFor(boxNumber: string) {
+    return taxBills.find((t) => t.boxNumber === boxNumber)?.deadline
+  }
+
   // Dashboard shows one row per box; clicking a box opens the per-customer
   // breakdown of every tax bill published for that box.
   const boxGroups: BoxGroup[] = useMemo(() => {
@@ -185,7 +189,7 @@ export default function TaxBills() {
         <div>
           <h2 className="text-xl font-bold text-slate-900">C · Tax Bill Management (Tagihan Pajak EMS)</h2>
           <p className="text-sm text-slate-500">
-            Hitung pembagian pajak per box, publikasikan ke customer, dan pantau deadline 7 hari. Klik
+            Hitung pembagian pajak per box, publikasikan ke customer, dan pantau deadline pembayaran. Klik
             sebuah box untuk melihat rincian tagihan tiap customer.
           </p>
         </div>
@@ -199,7 +203,7 @@ export default function TaxBills() {
 
       {overdueCount > 0 && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
-          {overdueCount} tagihan pajak sudah melewati deadline 7 hari dan masih belum lunas.
+          {overdueCount} tagihan pajak sudah melewati deadline pembayaran dan masih belum lunas.
         </div>
       )}
 
@@ -391,6 +395,7 @@ export default function TaxBills() {
             itemsByBox={itemsByBox}
             customers={customers}
             alreadyPublishedCustomerIds={alreadyPublishedCustomerIds}
+            boxDeadlineFor={boxDeadlineFor}
             onSaveWeights={setItemWeights}
             onPublish={publishTaxBills}
             onCancel={() => setFormOpen(false)}

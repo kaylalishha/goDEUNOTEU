@@ -24,12 +24,15 @@ export function TaxBoxDetailDialog({
   const rejectTaxBill = useStore((s) => s.rejectTaxBill)
   const simulateCustomerUploadTax = useStore((s) => s.simulateCustomerUploadTax)
   const updateTaxBillAmount = useStore((s) => s.updateTaxBillAmount)
+  const updateBoxDeadline = useStore((s) => s.updateBoxDeadline)
   const pushToast = useStore((s) => s.pushToast)
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null)
   const [amountDraft, setAmountDraft] = useState('')
+  const [editingDeadline, setEditingDeadline] = useState(false)
+  const [deadlineDraft, setDeadlineDraft] = useState('')
 
   if (taxBills.length === 0) return null
 
@@ -79,6 +82,19 @@ export function TaxBoxDetailDialog({
     setEditingAmountId(null)
   }
 
+  function startEditingDeadline() {
+    setDeadlineDraft(boxDeadline.slice(0, 10))
+    setEditingDeadline(true)
+  }
+
+  function saveDeadline() {
+    if (deadlineDraft) {
+      const existingTime = boxDeadline.slice(11)
+      updateBoxDeadline(boxNumber, new Date(`${deadlineDraft}T${existingTime}`).toISOString())
+    }
+    setEditingDeadline(false)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8">
       <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl">
@@ -123,7 +139,43 @@ export function TaxBoxDetailDialog({
               <span className="mb-0.5 block text-slate-400">
                 Deadline Pembayaran <span className="text-slate-300">(satu box, satu deadline)</span>
               </span>
-              <DeadlineBadge deadline={boxDeadline} isPaid={allLunas} />
+              {editingDeadline ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    autoFocus
+                    value={deadlineDraft}
+                    onChange={(e) => setDeadlineDraft(e.target.value)}
+                    className="rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveDeadline}
+                    className="text-xs font-medium text-emerald-600 hover:underline"
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDeadline(false)}
+                    className="text-xs text-slate-400 hover:underline"
+                  >
+                    Batal
+                  </button>
+                </div>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <DeadlineBadge deadline={boxDeadline} isPaid={allLunas} />
+                  <button
+                    type="button"
+                    onClick={startEditingDeadline}
+                    className="text-xs text-rose-600 hover:underline"
+                    title="Edit deadline pembayaran box ini"
+                  >
+                    Edit
+                  </button>
+                </span>
+              )}
             </div>
           </div>
 
