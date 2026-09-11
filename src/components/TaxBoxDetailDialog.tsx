@@ -21,9 +21,12 @@ export function TaxBoxDetailDialog({
   const confirmTaxBill = useStore((s) => s.confirmTaxBill)
   const rejectTaxBill = useStore((s) => s.rejectTaxBill)
   const simulateCustomerUploadTax = useStore((s) => s.simulateCustomerUploadTax)
+  const updateTaxBillAmount = useStore((s) => s.updateTaxBillAmount)
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [editingAmountId, setEditingAmountId] = useState<string | null>(null)
+  const [amountDraft, setAmountDraft] = useState('')
 
   if (taxBills.length === 0) return null
 
@@ -47,6 +50,19 @@ export function TaxBoxDetailDialog({
       else next.add(id)
       return next
     })
+  }
+
+  function startEditingAmount(taxBillId: string, currentTotal: number) {
+    setEditingAmountId(taxBillId)
+    setAmountDraft(String(currentTotal))
+  }
+
+  function saveAmount(taxBillId: string) {
+    const value = Number(amountDraft)
+    if (Number.isFinite(value) && value >= 0) {
+      updateTaxBillAmount(taxBillId, value)
+    }
+    setEditingAmountId(null)
   }
 
   return (
@@ -154,7 +170,53 @@ export function TaxBoxDetailDialog({
                         </div>
                         <div>
                           <span className="block text-xs text-slate-400">total tagihan</span>
-                          <span className="font-medium text-slate-800">{formatIDR(t.total)}</span>
+                          {editingAmountId === t.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={0}
+                                autoFocus
+                                value={amountDraft}
+                                onChange={(e) => setAmountDraft(e.target.value)}
+                                className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => saveAmount(t.id)}
+                                className="text-xs font-medium text-emerald-600 hover:underline"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingAmountId(null)}
+                                className="text-xs text-slate-400 hover:underline"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <span className="font-medium text-slate-800">{formatIDR(t.total)}</span>
+                              {t.status !== 'Lunas' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingAmount(t.id, t.total)}
+                                  className="text-xs text-rose-600 hover:underline"
+                                  title="Edit jumlah tagihan"
+                                >
+                                  Edit
+                                </button>
+                              ) : (
+                                <span
+                                  className="text-xs text-slate-300"
+                                  title="Tagihan yang sudah lunas tidak bisa diubah"
+                                >
+                                  🔒
+                                </span>
+                              )}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -193,7 +255,10 @@ export function TaxBoxDetailDialog({
                       )}
 
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Rincian per Batch
+                        Rincian per Batch{' '}
+                        <span className="font-normal normal-case text-slate-400">
+                          — acuan awal dari perhitungan proporsional. Jumlah final ada di "total tagihan" di atas.
+                        </span>
                       </p>
                       <div className="overflow-hidden rounded-lg border border-slate-200">
                         <div className="overflow-x-auto">

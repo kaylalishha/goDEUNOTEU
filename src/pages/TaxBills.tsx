@@ -4,9 +4,11 @@ import { Modal } from '../components/Modal'
 import { TaxCalculationForm } from '../components/TaxCalculationForm'
 import { TaxBoxDetailDialog } from '../components/TaxBoxDetailDialog'
 import { DeadlineBadge } from '../components/DeadlineBadge'
+import { AlertDialog } from '../components/AlertDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState } from '../components/EmptyState'
 import { PAGE_SIZE, Pagination } from '../components/Pagination'
+import { guardTaxBillDeletion } from '../lib/deleteGuards'
 import { daysRemaining, formatDate, formatIDR } from '../lib/format'
 import { TAX_BILL_STATUSES, type TaxBill, type TaxBillStatus } from '../types'
 
@@ -41,6 +43,7 @@ export default function TaxBills() {
   const [viewingBoxNumber, setViewingBoxNumber] = useState<string | null>(null)
   const [selectedBoxNumbers, setSelectedBoxNumbers] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const [nothingToDeleteOpen, setNothingToDeleteOpen] = useState(false)
   const [page, setPage] = useState(1)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
@@ -142,7 +145,15 @@ export default function TaxBills() {
   const selectedBills = boxGroups
     .filter((g) => selectedBoxNumbers.has(g.boxNumber))
     .flatMap((g) => g.bills)
-  const selectedResolvedBillCount = selectedBills.filter((b) => b.status !== 'Belum Bayar').length
+  const { eligible: eligibleBillsToDelete, blocked: blockedBillsToDelete } = guardTaxBillDeletion(selectedBills)
+
+  function handleDeleteClick() {
+    if (eligibleBillsToDelete.length === 0) {
+      setNothingToDeleteOpen(true)
+    } else {
+      setBulkDeleteConfirmOpen(true)
+    }
+  }
 
   function handleBulkDeleteConfirm() {
     deleteTaxBills(selectedBills.map((b) => b.id))
@@ -263,7 +274,7 @@ export default function TaxBills() {
           <span className="text-sm font-medium text-rose-700">{selectedBoxNumbers.size} box dipilih</span>
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setBulkDeleteConfirmOpen(true)}
+              onClick={handleDeleteClick}
               className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
             >
               Delete
@@ -395,13 +406,23 @@ export default function TaxBills() {
         <ConfirmDialog
           title={`Hapus Tagihan Pajak untuk ${selectedBoxNumbers.size} Box?`}
           message={
-            `Tindakan ini tidak bisa dibatalkan — semua tagihan pajak yang dipublikasikan untuk box yang dipilih akan ikut terhapus.` +
-            (selectedResolvedBillCount > 0
-              ? ` ${selectedResolvedBillCount} tagihan di antaranya sudah dibayar/menunggu konfirmasi.`
-              : '')
+            `${eligibleBillsToDelete.length} tagihan akan dihapus.` +
+            (blockedBillsToDelete.length > 0
+              ? ` ${blockedBillsToDelete.length} tagihan dilewati karena sudah dibayar/menunggu konfirmasi.`
+              : '') +
+            ' Tindakan ini tidak bisa dibatalkan.'
           }
           onConfirm={handleBulkDeleteConfirm}
           onCancel={() => setBulkDeleteConfirmOpen(false)}
+        />
+      )}
+
+      {nothingToDeleteOpen && (
+        <AlertDialog
+          tone="error"
+          title="Tidak Ada yang Bisa Dihapus"
+          message="Semua tagihan pajak pada box yang dipilih sudah dibayar atau menunggu konfirmasi pembayaran, jadi tidak ada yang bisa dihapus."
+          onClose={() => setNothingToDeleteOpen(false)}
         />
       )}
     </div>

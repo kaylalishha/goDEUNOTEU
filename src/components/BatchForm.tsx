@@ -15,6 +15,7 @@ import { AlertDialog } from './AlertDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { CustomerCombobox } from './CustomerCombobox'
 import { makeId } from '../lib/id'
+import { guardBatchDeletion } from '../lib/deleteGuards'
 import { formatIDR } from '../lib/format'
 import { BATCH_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
 import { useStore, type SaveBatchInput } from '../store/useStore'
@@ -96,21 +97,27 @@ export function BatchForm({
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   const batchBills = useStore((s) => s.batchBills)
+  const taxBills = useStore((s) => s.taxBills)
   const deleteBatches = useStore((s) => s.deleteBatches)
-  const paidCustomerIds = new Set(
+  // A customer's items lock once their bill is Lunas or Menunggu
+  // Konfirmasi — money's either settled or already in flight, so editing
+  // items out from under it would silently change what they owe.
+  const protectedCustomerBillStatus = new Map(
     initial
       ? batchBills
-          .filter((b) => b.batchId === initial.batch.id && b.status === 'Lunas')
-          .map((b) => b.customerId)
+          .filter(
+            (b) =>
+              b.batchId === initial.batch.id &&
+              (b.status === 'Lunas' || b.status === 'Menunggu Konfirmasi'),
+          )
+          .map((b) => [b.customerId, b.status] as const)
       : [],
   )
-  const batchHasPaidOrPendingBill = initial
-    ? batchBills.some(
-        (b) =>
-          b.batchId === initial.batch.id &&
-          (b.status === 'Lunas' || b.status === 'Menunggu Konfirmasi'),
-      )
-    : false
+  const deleteGuard = initial
+    ? guardBatchDeletion([initial.batch], initial.items, taxBills, batchBills)
+    : null
+  const isDeleteBlocked = Boolean(deleteGuard && deleteGuard.blocked.length > 0)
+  const deleteBlockReason = deleteGuard?.blocked[0]?.reason
 
   function handleDeleteConfirm() {
     if (!initial) return
@@ -314,7 +321,8 @@ export function BatchForm({
 
         <div className="flex flex-col gap-4">
           {customerOrders.map((order) => {
-            const isLocked = paidCustomerIds.has(order.customerId)
+            const lockedStatus = protectedCustomerBillStatus.get(order.customerId)
+            const isLocked = Boolean(lockedStatus)
             return (
             <div
               key={order.localId}
@@ -336,9 +344,9 @@ export function BatchForm({
                 {isLocked && (
                   <span
                     className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                    title="Pembayaran customer ini sudah dikonfirmasi (Lunas) — item terkunci agar tidak berubah diam-diam."
+                    title="Pembayaran customer ini sudah lunas atau sedang menunggu konfirmasi — item terkunci agar tidak berubah diam-diam."
                   >
-                    🔒 Lunas — terkunci
+                    🔒 {lockedStatus} — terkunci
                   </span>
                 )}
                 {!isLocked && customerOrders.length > 1 && (
@@ -484,13 +492,19 @@ export function BatchForm({
 
       <div className="mt-1 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
         {initial ? (
-          <button
-            type="button"
-            onClick={() => setDeleteConfirmOpen(true)}
-            className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
-          >
-            Hapus Batch
-          </button>
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={isDeleteBlocked}
+              className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Hapus Batch
+            </button>
+            {isDeleteBlocked && (
+              <span className="text-xs text-slate-400">Tidak bisa dihapus — {deleteBlockReason}.</span>
+            )}
+          </div>
         ) : (
           <span />
         )}
@@ -527,12 +541,7 @@ export function BatchForm({
       {deleteConfirmOpen && initial && (
         <ConfirmDialog
           title={`Hapus ${initial.batch.batchNumber}?`}
-          message={
-            `Tindakan ini tidak bisa dibatalkan — semua item dan tagihan pada batch ini akan ikut terhapus.` +
-            (batchHasPaidOrPendingBill
-              ? ' Batch ini punya tagihan yang sudah dibayar/menunggu konfirmasi.'
-              : '')
-          }
+          message="Tindakan ini tidak bisa dibatalkan — semua item dan tagihan pada batch ini akan ikut terhapus."
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteConfirmOpen(false)}
         />

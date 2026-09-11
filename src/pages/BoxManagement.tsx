@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
+import { AlertDialog } from '../components/AlertDialog'
 import { BoxForm } from '../components/BoxForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState } from '../components/EmptyState'
 import { PAGE_SIZE, Pagination } from '../components/Pagination'
+import { guardBoxDeletion } from '../lib/deleteGuards'
 import { formatDate } from '../lib/format'
 import type { Box } from '../types'
 
 export default function BoxManagement() {
   const boxes = useStore((s) => s.boxes)
   const batches = useStore((s) => s.batches)
+  const taxBills = useStore((s) => s.taxBills)
   const saveBox = useStore((s) => s.saveBox)
   const deleteBoxes = useStore((s) => s.deleteBoxes)
 
@@ -18,6 +21,7 @@ export default function BoxManagement() {
   const [viewingBox, setViewingBox] = useState<Box | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const [nothingToDeleteOpen, setNothingToDeleteOpen] = useState(false)
   const [page, setPage] = useState(1)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
@@ -62,15 +66,26 @@ export default function BoxManagement() {
     })
   }
 
+  function handleDeleteClick() {
+    if (eligibleBoxesToDelete.length === 0) {
+      setNothingToDeleteOpen(true)
+    } else {
+      setBulkDeleteConfirmOpen(true)
+    }
+  }
+
   function handleBulkDeleteConfirm() {
     deleteBoxes(Array.from(selectedIds))
     setSelectedIds(new Set())
     setBulkDeleteConfirmOpen(false)
   }
 
-  const affectedBatchCount = boxes
-    .filter((b) => selectedIds.has(b.id))
-    .reduce((sum, b) => sum + b.batchIds.length, 0)
+  const selectedBoxesForDelete = boxes.filter((b) => selectedIds.has(b.id))
+  const { eligible: eligibleBoxesToDelete, blocked: blockedBoxesToDelete } = guardBoxDeletion(
+    selectedBoxesForDelete,
+    taxBills,
+  )
+  const affectedBatchCount = eligibleBoxesToDelete.reduce((sum, b) => sum + b.batchIds.length, 0)
 
   return (
     <div className="flex flex-col gap-6">
@@ -96,7 +111,7 @@ export default function BoxManagement() {
           <span className="text-sm font-medium text-rose-700">{selectedIds.size} box dipilih</span>
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setBulkDeleteConfirmOpen(true)}
+              onClick={handleDeleteClick}
               className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
             >
               Delete
@@ -210,13 +225,26 @@ export default function BoxManagement() {
         <ConfirmDialog
           title={`Hapus ${selectedIds.size} Box?`}
           message={
-            `Tindakan ini tidak bisa dibatalkan.` +
+            `${eligibleBoxesToDelete.length} box akan dihapus` +
             (affectedBatchCount > 0
-              ? ` ${affectedBatchCount} batch di dalamnya akan kembali ke status "Dibeli dari Seller" dan tidak lagi terhubung ke box manapun.`
-              : '')
+              ? `, dan ${affectedBatchCount} batch di dalamnya akan kembali ke status "Dibeli dari Seller".`
+              : '.') +
+            (blockedBoxesToDelete.length > 0
+              ? ` ${blockedBoxesToDelete.length} box dilewati karena masih punya tagihan pajak yang dipublikasikan.`
+              : '') +
+            ' Tindakan ini tidak bisa dibatalkan.'
           }
           onConfirm={handleBulkDeleteConfirm}
           onCancel={() => setBulkDeleteConfirmOpen(false)}
+        />
+      )}
+
+      {nothingToDeleteOpen && (
+        <AlertDialog
+          tone="error"
+          title="Tidak Ada yang Bisa Dihapus"
+          message="Semua box yang dipilih masih punya tagihan pajak yang dipublikasikan — hapus tagihannya dulu di halaman Tax Bills sebelum menghapus box ini."
+          onClose={() => setNothingToDeleteOpen(false)}
         />
       )}
     </div>

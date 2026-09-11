@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
+import { AlertDialog } from '../components/AlertDialog'
 import { BatchForm } from '../components/BatchForm'
 import { BatchDetailDialog } from '../components/BatchDetailDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CustomerCombobox } from '../components/CustomerCombobox'
+import { guardBatchDeletion } from '../lib/deleteGuards'
 import { formatDate, formatIDR } from '../lib/format'
 import {
   BATCH_BILL_STATUSES,
@@ -35,6 +37,7 @@ export default function OrderRecap() {
   const batches = useStore((s) => s.batches)
   const items = useStore((s) => s.items)
   const batchBills = useStore((s) => s.batchBills)
+  const taxBills = useStore((s) => s.taxBills)
   const customers = useStore((s) => s.customers)
   const getCustomerName = useStore((s) => s.getCustomerName)
   const saveBatch = useStore((s) => s.saveBatch)
@@ -52,6 +55,7 @@ export default function OrderRecap() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const [nothingToDeleteOpen, setNothingToDeleteOpen] = useState(false)
   const [page, setPage] = useState(1)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
@@ -174,15 +178,27 @@ export default function OrderRecap() {
     })
   }
 
+  function handleDeleteClick() {
+    if (eligibleBatchesToDelete.length === 0) {
+      setNothingToDeleteOpen(true)
+    } else {
+      setBulkDeleteConfirmOpen(true)
+    }
+  }
+
   function handleBulkDeleteConfirm() {
     deleteBatches(Array.from(selectedIds))
     setSelectedIds(new Set())
     setBulkDeleteConfirmOpen(false)
   }
 
-  const selectedPaidBillCount = batchBills.filter(
-    (b) => selectedIds.has(b.batchId) && (b.status === 'Lunas' || b.status === 'Menunggu Konfirmasi'),
-  ).length
+  const selectedBatchesForDelete = batches.filter((b) => selectedIds.has(b.id))
+  const { eligible: eligibleBatchesToDelete, blocked: blockedBatchesToDelete } = guardBatchDeletion(
+    selectedBatchesForDelete,
+    items,
+    taxBills,
+    batchBills,
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -356,7 +372,7 @@ export default function OrderRecap() {
           </span>
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setBulkDeleteConfirmOpen(true)}
+              onClick={handleDeleteClick}
               className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
             >
               Delete
@@ -538,13 +554,23 @@ export default function OrderRecap() {
         <ConfirmDialog
           title={`Hapus ${selectedIds.size} Batch Record?`}
           message={
-            `Tindakan ini tidak bisa dibatalkan — semua item dan tagihan pada batch yang dipilih akan ikut terhapus.` +
-            (selectedPaidBillCount > 0
-              ? ` ${selectedPaidBillCount} tagihan di antaranya sudah dibayar/menunggu konfirmasi.`
-              : '')
+            `${eligibleBatchesToDelete.length} batch akan dihapus, beserta item dan tagihannya.` +
+            (blockedBatchesToDelete.length > 0
+              ? ` ${blockedBatchesToDelete.length} batch dilewati karena punya item di tagihan pajak yang dipublikasikan, atau tagihan yang sudah dibayar/menunggu konfirmasi.`
+              : '') +
+            ' Tindakan ini tidak bisa dibatalkan.'
           }
           onConfirm={handleBulkDeleteConfirm}
           onCancel={() => setBulkDeleteConfirmOpen(false)}
+        />
+      )}
+
+      {nothingToDeleteOpen && (
+        <AlertDialog
+          tone="error"
+          title="Tidak Ada yang Bisa Dihapus"
+          message="Semua batch yang dipilih punya item di tagihan pajak yang dipublikasikan, atau tagihan yang sudah dibayar/menunggu konfirmasi — jadi tidak ada yang bisa dihapus."
+          onClose={() => setNothingToDeleteOpen(false)}
         />
       )}
     </div>

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { makeId } from '../lib/id'
+import { guardBatchDeletion, guardBoxDeletion, guardTaxBillDeletion } from '../lib/deleteGuards'
 import {
   seedBatchBills,
   seedBatches,
@@ -88,7 +89,11 @@ interface StoreState {
   // starts at "Dibeli dari Seller" and only Feature B (Box Management)
   // can move it, since a box ships as one unit.
   saveBatch: (input: SaveBatchInput) => void
-  // Deletes one or many batch records along with their items and bills.
+  // Deletes one or many batch records along with their items and bills —
+  // but only the ones that are actually safe to delete. A batch whose
+  // items are already in a published tax bill, or whose own bill is
+  // Lunas/Menunggu Konfirmasi, is skipped rather than deleted; see
+  // src/lib/deleteGuards.ts for the exact rule.
   deleteBatches: (batchIds: string[]) => void
   setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
   simulateCustomerUploadBatch: (batchBillId: string) => void
@@ -102,9 +107,10 @@ interface StoreState {
   // batches removed from it fall back to "Dibeli dari Seller" (no box,
   // no derived status).
   saveBox: (input: SaveBoxInput) => void
-  // Deletes one or many boxes. Every batch that was inside a deleted box
-  // is released back to unboxed ("Dibeli dari Seller"), same as removing
-  // it from the box via saveBox.
+  // Deletes one or many boxes — but only the ones with no tax bill still
+  // pointing at them (see src/lib/deleteGuards.ts). Every batch inside a
+  // box that does get deleted is released back to unboxed ("Dibeli dari
+  // Seller").
   deleteBoxes: (boxIds: string[]) => void
 
   // Feature C
@@ -116,7 +122,15 @@ interface StoreState {
   simulateCustomerUploadTax: (taxBillId: string) => void
   confirmTaxBill: (taxBillId: string) => void
   rejectTaxBill: (taxBillId: string) => void
-  // Deletes one or many published tax bills (eg. undoing a publish).
+  // Overrides one customer's published tax amount directly — the box's
+  // displayed total isn't a stored field anywhere, it's always the live
+  // sum of its bills' `total`, so this is the only change needed for the
+  // box total to "follow" the edit. Refused once the bill is Lunas —
+  // settled payments don't get silently rewritten.
+  updateTaxBillAmount: (taxBillId: string, total: number) => void
+  // Deletes one or many published tax bills — but only the ones still
+  // Belum Bayar (see src/lib/deleteGuards.ts). A Lunas or Menunggu
+  // Konfirmasi bill is a real financial record, not undone by a delete.
   deleteTaxBills: (taxBillIds: string[]) => void
 
   // Feature D
@@ -282,20 +296,36 @@ export const useStore = create<StoreState>()(
       },
 
       deleteBatches: (batchIds) => {
-        const idSet = new Set(batchIds)
-        set((s) => ({
-          batches: s.batches.filter((b) => !idSet.has(b.id)),
-          items: s.items.filter((i) => !idSet.has(i.batchId)),
-          batchBills: s.batchBills.filter((b) => !idSet.has(b.batchId)),
-          boxes: s.boxes.map((box) => ({
-            ...box,
-            batchIds: box.batchIds.filter((id) => !idSet.has(id)),
-          })),
-        }))
-        get().pushToast(
-          batchIds.length > 1 ? `${batchIds.length} batch record dihapus.` : 'Batch record dihapus.',
-          'success',
-        )
+        let deletedCount = 0
+        let blockedCount = 0
+        set((s) => {
+          const targets = s.batches.filter((b) => batchIds.includes(b.id))
+          const { eligible, blocked } = guardBatchDeletion(targets, s.items, s.taxBills, s.batchBills)
+          deletedCount = eligible.length
+          blockedCount = blocked.length
+          const idSet = new Set(eligible.map((b) => b.id))
+          return {
+            batches: s.batches.filter((b) => !idSet.has(b.id)),
+            items: s.items.filter((i) => !idSet.has(i.batchId)),
+            batchBills: s.batchBills.filter((b) => !idSet.has(b.batchId)),
+            boxes: s.boxes.map((box) => ({
+              ...box,
+              batchIds: box.batchIds.filter((id) => !idSet.has(id)),
+            })),
+          }
+        })
+        if (deletedCount > 0) {
+          get().pushToast(
+            deletedCount > 1 ? `${deletedCount} batch record dihapus.` : 'Batch record dihapus.',
+            'success',
+          )
+        }
+        if (blockedCount > 0) {
+          get().pushToast(
+            `${blockedCount} batch tidak bisa dihapus — masih punya item di tagihan pajak yang dipublikasikan, atau tagihan yang sudah dibayar/menunggu konfirmasi.`,
+            'error',
+          )
+        }
       },
 
       saveBox: (input) => {
@@ -335,12 +365,16 @@ export const useStore = create<StoreState>()(
       },
 
       deleteBoxes: (boxIds) => {
-        const idSet = new Set(boxIds)
         const now = new Date().toISOString()
+        let deletedCount = 0
+        let blockedCount = 0
         set((s) => {
-          const affectedBatchIds = new Set(
-            s.boxes.filter((b) => idSet.has(b.id)).flatMap((b) => b.batchIds),
-          )
+          const targets = s.boxes.filter((b) => boxIds.includes(b.id))
+          const { eligible, blocked } = guardBoxDeletion(targets, s.taxBills)
+          deletedCount = eligible.length
+          blockedCount = blocked.length
+          const idSet = new Set(eligible.map((b) => b.id))
+          const affectedBatchIds = new Set(eligible.flatMap((b) => b.batchIds))
           return {
             boxes: s.boxes.filter((b) => !idSet.has(b.id)),
             batches: s.batches.map((b) =>
@@ -350,7 +384,15 @@ export const useStore = create<StoreState>()(
             ),
           }
         })
-        get().pushToast(boxIds.length > 1 ? `${boxIds.length} box dihapus.` : 'Box dihapus.', 'success')
+        if (deletedCount > 0) {
+          get().pushToast(deletedCount > 1 ? `${deletedCount} box dihapus.` : 'Box dihapus.', 'success')
+        }
+        if (blockedCount > 0) {
+          get().pushToast(
+            `${blockedCount} box tidak bisa dihapus — masih punya tagihan pajak yang dipublikasikan. Hapus tagihannya dulu.`,
+            'error',
+          )
+        }
       },
 
       setItemWeights: (weights) => {
@@ -455,13 +497,52 @@ export const useStore = create<StoreState>()(
         get().pushToast('Bukti transfer pajak ditolak — customer diminta upload ulang.', 'error')
       },
 
+      updateTaxBillAmount: (taxBillId, total) => {
+        if (!Number.isFinite(total) || total < 0) {
+          get().pushToast('Jumlah tagihan harus berupa angka 0 atau lebih.', 'error')
+          return
+        }
+        let blocked = false
+        set((s) => {
+          const bill = s.taxBills.find((t) => t.id === taxBillId)
+          if (!bill || bill.status === 'Lunas') {
+            blocked = true
+            return s
+          }
+          return {
+            taxBills: s.taxBills.map((t) => (t.id === taxBillId ? { ...t, total } : t)),
+          }
+        })
+        if (blocked) {
+          get().pushToast('Tagihan yang sudah lunas tidak bisa diubah jumlahnya.', 'error')
+        } else {
+          get().pushToast('Jumlah tagihan pajak diperbarui.', 'success')
+        }
+      },
+
       deleteTaxBills: (taxBillIds) => {
-        const idSet = new Set(taxBillIds)
-        set((s) => ({ taxBills: s.taxBills.filter((t) => !idSet.has(t.id)) }))
-        get().pushToast(
-          taxBillIds.length > 1 ? `${taxBillIds.length} tagihan pajak dihapus.` : 'Tagihan pajak dihapus.',
-          'success',
-        )
+        let deletedCount = 0
+        let blockedCount = 0
+        set((s) => {
+          const targets = s.taxBills.filter((t) => taxBillIds.includes(t.id))
+          const { eligible, blocked } = guardTaxBillDeletion(targets)
+          deletedCount = eligible.length
+          blockedCount = blocked.length
+          const idSet = new Set(eligible.map((t) => t.id))
+          return { taxBills: s.taxBills.filter((t) => !idSet.has(t.id)) }
+        })
+        if (deletedCount > 0) {
+          get().pushToast(
+            deletedCount > 1 ? `${deletedCount} tagihan pajak dihapus.` : 'Tagihan pajak dihapus.',
+            'success',
+          )
+        }
+        if (blockedCount > 0) {
+          get().pushToast(
+            `${blockedCount} tagihan pajak tidak bisa dihapus — sudah lunas atau menunggu konfirmasi pembayaran.`,
+            'error',
+          )
+        }
       },
 
       updateEstimatorConfig: (patch) => {
