@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
+import { copyText } from '../lib/clipboard'
 import { formatDate, formatIDR } from '../lib/format'
+import { buildTaxTagihanTemplate } from '../lib/taxTagihanTemplate'
 import { KARTU_FLAT_TAX_IDR } from '../types'
 import { DeadlineBadge } from './DeadlineBadge'
 import { ImageLightbox } from './ImageLightbox'
@@ -22,6 +24,7 @@ export function TaxBoxDetailDialog({
   const rejectTaxBill = useStore((s) => s.rejectTaxBill)
   const simulateCustomerUploadTax = useStore((s) => s.simulateCustomerUploadTax)
   const updateTaxBillAmount = useStore((s) => s.updateTaxBillAmount)
+  const pushToast = useStore((s) => s.pushToast)
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
@@ -42,6 +45,17 @@ export function TaxBoxDetailDialog({
   const boxBatchNumbers = Array.from(
     new Set(allBatches.filter((b) => b.boxNumber === boxNumber).map((b) => b.batchNumber)),
   ).sort()
+
+  const tagihanText = buildTaxTagihanTemplate({
+    boxNumber,
+    customerNames: taxBills.map((t) => getCustomerName(t.customerId)),
+    deadline: boxDeadline,
+  })
+
+  async function handleCopyTagihan() {
+    const ok = await copyText(tagihanText)
+    pushToast(ok ? 'Teks tagihan pajak disalin.' : 'Gagal menyalin teks tagihan.', ok ? 'success' : 'error')
+  }
 
   function toggle(id: string) {
     setExpanded((set) => {
@@ -110,6 +124,23 @@ export function TaxBoxDetailDialog({
                 Deadline Pembayaran <span className="text-slate-300">(satu box, satu deadline)</span>
               </span>
               <DeadlineBadge deadline={boxDeadline} isPaid={allLunas} />
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Template Tagihan Pajak
+            </p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-700">
+                {tagihanText}
+              </pre>
+              <button
+                onClick={handleCopyTagihan}
+                className="mt-2 text-xs font-medium text-rose-600 hover:underline"
+              >
+                copy
+              </button>
             </div>
           </div>
 
