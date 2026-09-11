@@ -29,7 +29,9 @@ export function TaxCalculationForm({
   boxDeadlineFor: (boxNumber: string) => string | undefined
   onSaveWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
   onPublish: (
-    bills: Array<Omit<TaxBill, 'id' | 'publishedAt' | 'deadline' | 'status' | 'buktiTransfer'>>,
+    bills: Array<
+      Omit<TaxBill, 'id' | 'publishedAt' | 'deadline' | 'status' | 'buktiTransfer' | 'lateFeeIDR'>
+    >,
     deadline: string,
   ) => void
   onCancel: () => void

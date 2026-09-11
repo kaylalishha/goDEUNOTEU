@@ -24,6 +24,7 @@ export function TaxBoxDetailDialog({
   const rejectTaxBill = useStore((s) => s.rejectTaxBill)
   const simulateCustomerUploadTax = useStore((s) => s.simulateCustomerUploadTax)
   const updateTaxBillAmount = useStore((s) => s.updateTaxBillAmount)
+  const updateTaxBillLateFee = useStore((s) => s.updateTaxBillLateFee)
   const updateBoxDeadline = useStore((s) => s.updateBoxDeadline)
   const pushToast = useStore((s) => s.pushToast)
 
@@ -31,6 +32,8 @@ export function TaxBoxDetailDialog({
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [editingAmountId, setEditingAmountId] = useState<string | null>(null)
   const [amountDraft, setAmountDraft] = useState('')
+  const [editingLateFeeId, setEditingLateFeeId] = useState<string | null>(null)
+  const [lateFeeDraft, setLateFeeDraft] = useState('')
   const [editingDeadline, setEditingDeadline] = useState(false)
   const [deadlineDraft, setDeadlineDraft] = useState('')
 
@@ -82,6 +85,19 @@ export function TaxBoxDetailDialog({
     setEditingAmountId(null)
   }
 
+  function startEditingLateFee(taxBillId: string, currentLateFee: number) {
+    setEditingLateFeeId(taxBillId)
+    setLateFeeDraft(String(currentLateFee))
+  }
+
+  function saveLateFee(taxBillId: string) {
+    const value = Number(lateFeeDraft)
+    if (Number.isFinite(value) && value >= 0) {
+      updateTaxBillLateFee(taxBillId, value)
+    }
+    setEditingLateFeeId(null)
+  }
+
   function startEditingDeadline() {
     setDeadlineDraft(boxDeadline.slice(0, 10))
     setEditingDeadline(true)
@@ -96,8 +112,11 @@ export function TaxBoxDetailDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8">
-      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8"
+      onClick={onClose}
+    >
+      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <h2 className="text-base font-bold text-rose-600">
@@ -216,7 +235,9 @@ export function TaxBoxDetailDialog({
                     <span className="flex items-center gap-3">
                       <span className="text-right text-xs text-slate-500">
                         <span className="block">{itemIds.length} item</span>
-                        <span className="font-semibold text-slate-800">{formatIDR(t.total)}</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatIDR(t.total + t.lateFeeIDR)}
+                        </span>
                       </span>
                       <StatusBadge status={t.status} />
                       <span className="text-slate-400">{isOpen ? '︿' : '﹀'}</span>
@@ -252,7 +273,7 @@ export function TaxBoxDetailDialog({
                           </span>
                         </div>
                         <div>
-                          <span className="block text-xs text-slate-400">total tagihan</span>
+                          <span className="block text-xs text-slate-400">pajak produk</span>
                           {editingAmountId === t.id ? (
                             <div className="flex items-center gap-1.5">
                               <input
@@ -300,6 +321,62 @@ export function TaxBoxDetailDialog({
                               )}
                             </span>
                           )}
+                        </div>
+                        <div>
+                          <span className="block text-xs text-slate-400">denda telat</span>
+                          {editingLateFeeId === t.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={0}
+                                autoFocus
+                                value={lateFeeDraft}
+                                onChange={(e) => setLateFeeDraft(e.target.value)}
+                                className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => saveLateFee(t.id)}
+                                className="text-xs font-medium text-emerald-600 hover:underline"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingLateFeeId(null)}
+                                className="text-xs text-slate-400 hover:underline"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <span className="font-medium text-slate-800">{formatIDR(t.lateFeeIDR)}</span>
+                              {t.status === 'Belum Bayar' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingLateFee(t.id, t.lateFeeIDR)}
+                                  className="text-xs text-rose-600 hover:underline"
+                                  title="Edit denda telat"
+                                >
+                                  Edit
+                                </button>
+                              ) : (
+                                <span
+                                  className="text-xs text-slate-300"
+                                  title="Denda telat hanya bisa diubah selama tagihan masih Belum Bayar"
+                                >
+                                  🔒
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="block text-xs text-slate-400">total tagihan</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatIDR(t.total + t.lateFeeIDR)}
+                          </span>
                         </div>
                       </div>
 

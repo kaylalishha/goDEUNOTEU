@@ -536,6 +536,7 @@ export const seedTaxBills: TaxBill[] = [
     nonKartuWeightGrams: 0,
     nonKartuShare: 0,
     total: 10000,
+    lateFeeIDR: 5000,
     publishedAt: daysAgoIso(6),
     // Every batch under one box shares the same payment deadline.
     deadline: daysAgoIso(2),
@@ -551,6 +552,7 @@ export const seedTaxBills: TaxBill[] = [
     nonKartuWeightGrams: 420,
     nonKartuShare: 57534,
     total: 57534,
+    lateFeeIDR: 0,
     publishedAt: daysAgoIso(9),
     deadline: daysAgoIso(2),
     status: 'Belum Bayar',
@@ -565,6 +567,7 @@ export const seedTaxBills: TaxBill[] = [
     nonKartuWeightGrams: 310,
     nonKartuShare: 42465,
     total: 47465,
+    lateFeeIDR: 0,
     publishedAt: daysAgoIso(9),
     deadline: daysAgoIso(2),
     status: 'Lunas',

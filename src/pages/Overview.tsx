@@ -67,7 +67,7 @@ export default function Overview() {
     ...overdueTax.map((t) => ({
       key: t.id,
       label: `Tax bill overdue — ${getCustomerName(t.customerId)} (Box ${t.boxNumber})`,
-      detail: `${Math.abs(daysRemaining(t.deadline))} hari lewat deadline · ${formatIDR(t.total)}`,
+      detail: `${Math.abs(daysRemaining(t.deadline))} hari lewat deadline · ${formatIDR(t.total + t.lateFeeIDR)}`,
       to: '/tax-bills',
     })),
     ...batchBills
@@ -83,7 +83,7 @@ export default function Overview() {
       .map((t) => ({
         key: t.id,
         label: `Bukti transfer pajak menunggu konfirmasi — ${getCustomerName(t.customerId)} (Box ${t.boxNumber})`,
-        detail: formatIDR(t.total),
+        detail: formatIDR(t.total + t.lateFeeIDR),
         to: '/tax-bills',
       })),
   ]

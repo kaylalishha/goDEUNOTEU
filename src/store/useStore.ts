@@ -121,7 +121,7 @@ interface StoreState {
   // this same deadline too, since a box only ever has one.
   publishTaxBills: (
     bills: Array<
-      Omit<TaxBill, 'id' | 'publishedAt' | 'deadline' | 'status' | 'buktiTransfer'>
+      Omit<TaxBill, 'id' | 'publishedAt' | 'deadline' | 'status' | 'buktiTransfer' | 'lateFeeIDR'>
     >,
     deadline: string,
   ) => void
@@ -134,6 +134,13 @@ interface StoreState {
   // box total to "follow" the edit. Refused once the bill is Lunas —
   // settled payments don't get silently rewritten.
   updateTaxBillAmount: (taxBillId: string, total: number) => void
+  // Free-entry late fee, separate from the product tax — admin decides the
+  // amount, nothing is auto-suggested from days overdue. Locked once the
+  // bill is Menunggu Konfirmasi or Lunas, same as the reasoning for
+  // updateTaxBillAmount, but stricter: a pending confirmation already has
+  // a bukti transfer in flight for a specific amount, so the fee can't
+  // move under it either.
+  updateTaxBillLateFee: (taxBillId: string, lateFeeIDR: number) => void
   // Changes a box's shared payment deadline, applied to every tax bill in
   // it at once — deadline isn't a payment-sensitive field the way total
   // is, so this stays editable regardless of any bill's status.
@@ -455,6 +462,7 @@ export const useStore = create<StoreState>()(
             publishedAt: nowIso,
             deadline,
             status: 'Belum Bayar',
+            lateFeeIDR: 0,
           }))
           // Every batch under one box shares a single payment deadline — if
           // this box already had bills published, keep them synced to
@@ -524,6 +532,32 @@ export const useStore = create<StoreState>()(
         }
       },
 
+      updateTaxBillLateFee: (taxBillId, lateFeeIDR) => {
+        if (!Number.isFinite(lateFeeIDR) || lateFeeIDR < 0) {
+          get().pushToast('Denda telat harus berupa angka 0 atau lebih.', 'error')
+          return
+        }
+        let blocked = false
+        set((s) => {
+          const bill = s.taxBills.find((t) => t.id === taxBillId)
+          if (!bill || bill.status !== 'Belum Bayar') {
+            blocked = true
+            return s
+          }
+          return {
+            taxBills: s.taxBills.map((t) => (t.id === taxBillId ? { ...t, lateFeeIDR } : t)),
+          }
+        })
+        if (blocked) {
+          get().pushToast(
+            'Denda telat hanya bisa diubah selama tagihan masih Belum Bayar.',
+            'error',
+          )
+        } else {
+          get().pushToast('Denda telat diperbarui.', 'success')
+        }
+      },
+
       updateBoxDeadline: (boxNumber, deadline) => {
         set((s) => ({
           taxBills: s.taxBills.map((t) =>
@@ -581,7 +615,10 @@ export const useStore = create<StoreState>()(
       // changes need their persisted records backfilled, or the app
       // crashes reading fields that don't exist yet, or shows a status
       // (or a missing customer) no longer matching the current app.
-      version: 5,
+      // v6 adds TaxBill.lateFeeIDR (free-entry late payment fee, separate
+      // from the product tax) — persisted bills saved before this need it
+      // backfilled to 0, or reading it renders "NaN".
+      version: 6,
       migrate: (persistedState) => {
         const state = persistedState as {
           customers?: Array<Record<string, unknown>>
@@ -610,6 +647,7 @@ export const useStore = create<StoreState>()(
           state.taxBills = state.taxBills.map((t) => ({
             ...t,
             itemIds: t.itemIds ?? [],
+            lateFeeIDR: t.lateFeeIDR ?? 0,
           }))
         }
         if (state?.batchBills) {
