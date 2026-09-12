@@ -10,12 +10,14 @@ export function BoxForm({
   initial,
   onSubmit,
   onCancel,
+  onDelete,
 }: {
   boxes: Box[]
   batches: Batch[]
   initial?: Box
   onSubmit: (input: SaveBoxInput) => void
   onCancel: () => void
+  onDelete?: () => void
 }) {
   const [boxNumberValue, setBoxNumberValue] = useState<number | ''>(() => {
     if (initial) return extractNumber(initial.boxNumber, BOX_NUMBER_PREFIX)
@@ -182,20 +184,33 @@ export function BoxForm({
         {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
       </div>
 
-      <div className="mt-1 flex justify-end gap-3 border-t border-slate-200 pt-4">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-        >
-          Batal
-        </button>
-        <button
-          type="submit"
-          className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
-        >
-          {initial ? 'Simpan Perubahan' : 'Buat Box'}
-        </button>
+      <div className="mt-1 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
+        {initial && onDelete ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="text-sm font-medium text-rose-600 hover:underline"
+          >
+            Hapus Box
+          </button>
+        ) : (
+          <span />
+        )}
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Batal
+          </button>
+          <button
+            type="submit"
+            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+          >
+            {initial ? 'Simpan Perubahan' : 'Buat Box'}
+          </button>
+        </div>
       </div>
     </form>
   )

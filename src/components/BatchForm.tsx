@@ -346,7 +346,7 @@ export function BatchForm({
                     className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
                     title="Pembayaran customer ini sudah lunas atau sedang menunggu konfirmasi — item terkunci agar tidak berubah diam-diam."
                   >
-                    🔒 {lockedStatus} — terkunci
+                    {lockedStatus} — terkunci
                   </span>
                 )}
                 {!isLocked && customerOrders.length > 1 && (

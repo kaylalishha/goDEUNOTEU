@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
 import { AlertDialog } from '../components/AlertDialog'
@@ -19,25 +19,14 @@ export default function BoxManagement() {
 
   const [formOpen, setFormOpen] = useState(false)
   const [viewingBox, setViewingBox] = useState<Box | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
-  const [nothingToDeleteOpen, setNothingToDeleteOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteBlockedOpen, setDeleteBlockedOpen] = useState(false)
   const [page, setPage] = useState(1)
-  const selectAllRef = useRef<HTMLInputElement>(null)
 
   const sorted = [...boxes].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages)
   const pageItems = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-
-  const selectedInView = pageItems.filter((b) => selectedIds.has(b.id)).length
-  const allInViewSelected = pageItems.length > 0 && selectedInView === pageItems.length
-
-  useEffect(() => {
-    if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = selectedInView > 0 && !allInViewSelected
-    }
-  }, [selectedInView, allInViewSelected])
 
   function batchNumbersFor(box: Box) {
     return box.batchIds
@@ -45,47 +34,24 @@ export default function BoxManagement() {
       .filter((n): n is string => Boolean(n))
   }
 
-  function toggleSelected(boxId: string) {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(boxId)) next.delete(boxId)
-      else next.add(boxId)
-      return next
-    })
-  }
-
-  function handleSelectAllToggle() {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (allInViewSelected) {
-        pageItems.forEach((b) => next.delete(b.id))
-      } else {
-        pageItems.forEach((b) => next.add(b.id))
-      }
-      return next
-    })
-  }
-
+  // Delete only ever targets the box currently open in the detail card —
+  // there's no bulk/table delete, so a wrong-checkbox mistake isn't possible.
   function handleDeleteClick() {
-    if (eligibleBoxesToDelete.length === 0) {
-      setNothingToDeleteOpen(true)
+    if (!viewingBox) return
+    const { eligible } = guardBoxDeletion([viewingBox], taxBills)
+    if (eligible.length === 0) {
+      setDeleteBlockedOpen(true)
     } else {
-      setBulkDeleteConfirmOpen(true)
+      setDeleteConfirmOpen(true)
     }
   }
 
-  function handleBulkDeleteConfirm() {
-    deleteBoxes(Array.from(selectedIds))
-    setSelectedIds(new Set())
-    setBulkDeleteConfirmOpen(false)
+  function handleDeleteConfirm() {
+    if (!viewingBox) return
+    deleteBoxes([viewingBox.id])
+    setDeleteConfirmOpen(false)
+    setViewingBox(null)
   }
-
-  const selectedBoxesForDelete = boxes.filter((b) => selectedIds.has(b.id))
-  const { eligible: eligibleBoxesToDelete, blocked: blockedBoxesToDelete } = guardBoxDeletion(
-    selectedBoxesForDelete,
-    taxBills,
-  )
-  const affectedBatchCount = eligibleBoxesToDelete.reduce((sum, b) => sum + b.batchIds.length, 0)
 
   return (
     <div className="flex flex-col gap-6">
@@ -106,26 +72,6 @@ export default function BoxManagement() {
         </button>
       </div>
 
-      {selectedIds.size > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-          <span className="text-sm font-medium text-rose-700">{selectedIds.size} box dipilih</span>
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleDeleteClick}
-              className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
-            >
-              Delete
-            </button>
-            <button
-              onClick={() => setSelectedIds(new Set())}
-              className="text-xs font-medium text-rose-600 hover:underline"
-            >
-              Batalkan pilihan
-            </button>
-          </div>
-        </div>
-      )}
-
       {sorted.length === 0 ? (
         <EmptyState message="Belum ada box yang dibuat." />
       ) : (
@@ -133,16 +79,6 @@ export default function BoxManagement() {
           <table className="min-w-full divide-y divide-slate-200 text-sm">
             <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="w-10 px-4 py-3">
-                  <input
-                    ref={selectAllRef}
-                    type="checkbox"
-                    checked={allInViewSelected}
-                    onChange={handleSelectAllToggle}
-                    aria-label="Pilih semua box yang tampil"
-                    className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-400"
-                  />
-                </th>
                 <th className="px-4 py-3">Box Number</th>
                 <th className="px-4 py-3">Batch(es)</th>
                 <th className="px-4 py-3">Status</th>
@@ -155,24 +91,9 @@ export default function BoxManagement() {
                 return (
                   <tr
                     key={box.id}
-                    className={`cursor-pointer hover:bg-slate-50 ${
-                      selectedIds.has(box.id) ? 'bg-rose-50/60' : ''
-                    }`}
+                    className="cursor-pointer hover:bg-slate-50"
                     onClick={() => setViewingBox(box)}
                   >
-                    <td className="px-4 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(box.id)}
-                        onChange={() => {}}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          toggleSelected(box.id)
-                        }}
-                        aria-label={`Pilih ${box.boxNumber}`}
-                        className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-400"
-                      />
-                    </td>
                     <td className="px-4 py-3 font-medium text-slate-900">{box.boxNumber}</td>
                     <td className="px-4 py-3 text-slate-700">
                       {batchNumbers.length > 0 ? batchNumbers.join(', ') : '—'}
@@ -217,34 +138,30 @@ export default function BoxManagement() {
               setViewingBox(null)
             }}
             onCancel={() => setViewingBox(null)}
+            onDelete={handleDeleteClick}
           />
         </Modal>
       )}
 
-      {bulkDeleteConfirmOpen && (
+      {deleteConfirmOpen && viewingBox && (
         <ConfirmDialog
-          title={`Hapus ${selectedIds.size} Box?`}
+          title={`Hapus ${viewingBox.boxNumber}?`}
           message={
-            `${eligibleBoxesToDelete.length} box akan dihapus` +
-            (affectedBatchCount > 0
-              ? `, dan ${affectedBatchCount} batch di dalamnya akan kembali ke status "Dibeli dari Seller".`
-              : '.') +
-            (blockedBoxesToDelete.length > 0
-              ? ` ${blockedBoxesToDelete.length} box dilewati karena masih punya tagihan pajak yang dipublikasikan.`
-              : '') +
-            ' Tindakan ini tidak bisa dibatalkan.'
+            viewingBox.batchIds.length > 0
+              ? `${viewingBox.batchIds.length} batch di dalamnya akan kembali ke status "Dibeli dari Seller". Tindakan ini tidak bisa dibatalkan.`
+              : 'Tindakan ini tidak bisa dibatalkan.'
           }
-          onConfirm={handleBulkDeleteConfirm}
-          onCancel={() => setBulkDeleteConfirmOpen(false)}
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteConfirmOpen(false)}
         />
       )}
 
-      {nothingToDeleteOpen && (
+      {deleteBlockedOpen && (
         <AlertDialog
           tone="error"
-          title="Tidak Ada yang Bisa Dihapus"
-          message="Semua box yang dipilih masih punya tagihan pajak yang dipublikasikan — hapus tagihannya dulu di halaman Tax Bills sebelum menghapus box ini."
-          onClose={() => setNothingToDeleteOpen(false)}
+          title="Box Ini Belum Bisa Dihapus"
+          message="Box ini masih punya tagihan pajak yang dipublikasikan — hapus tagihannya dulu di halaman Tax Bills sebelum menghapus box ini."
+          onClose={() => setDeleteBlockedOpen(false)}
         />
       )}
     </div>

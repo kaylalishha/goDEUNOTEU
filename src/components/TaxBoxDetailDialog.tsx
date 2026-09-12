@@ -4,6 +4,7 @@ import { copyText } from '../lib/clipboard'
 import { formatDate, formatIDR } from '../lib/format'
 import { buildTaxTagihanTemplate } from '../lib/taxTagihanTemplate'
 import { KARTU_FLAT_TAX_IDR } from '../types'
+import { ConfirmDialog } from './ConfirmDialog'
 import { DeadlineBadge } from './DeadlineBadge'
 import { ImageLightbox } from './ImageLightbox'
 import { StatusBadge } from './StatusBadge'
@@ -26,6 +27,7 @@ export function TaxBoxDetailDialog({
   const updateTaxBillAmount = useStore((s) => s.updateTaxBillAmount)
   const updateTaxBillLateFee = useStore((s) => s.updateTaxBillLateFee)
   const updateBoxDeadline = useStore((s) => s.updateBoxDeadline)
+  const deleteTaxBills = useStore((s) => s.deleteTaxBills)
   const pushToast = useStore((s) => s.pushToast)
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
@@ -36,6 +38,9 @@ export function TaxBoxDetailDialog({
   const [lateFeeDraft, setLateFeeDraft] = useState('')
   const [editingDeadline, setEditingDeadline] = useState(false)
   const [deadlineDraft, setDeadlineDraft] = useState('')
+  // Delete only ever targets one bill at a time, opened from inside its own
+  // row here — there's no bulk/table delete, so no wrong-checkbox risk.
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
 
   if (taxBills.length === 0) return null
 
@@ -111,10 +116,23 @@ export function TaxBoxDetailDialog({
     setEditingDeadline(false)
   }
 
+  function confirmDeleteBill() {
+    if (!deleteTargetId) return
+    deleteTaxBills([deleteTargetId])
+    setDeleteTargetId(null)
+    // Deleting the last bill in the box leaves nothing left to show here.
+    if (taxBills.length <= 1) onClose()
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8"
-      onClick={onClose}
+      onClick={(e) => {
+        // Guards against nested overlays (ConfirmDialog, AlertDialog,
+        // ImageLightbox) rendered inside this same backdrop — a click
+        // bubbling up from one of those shouldn't also close this dialog.
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
@@ -313,10 +331,10 @@ export function TaxBoxDetailDialog({
                                 </button>
                               ) : (
                                 <span
-                                  className="text-xs text-slate-300"
+                                  className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500"
                                   title="Tagihan yang sudah lunas tidak bisa diubah"
                                 >
-                                  🔒
+                                  Terkunci
                                 </span>
                               )}
                             </span>
@@ -363,10 +381,10 @@ export function TaxBoxDetailDialog({
                                 </button>
                               ) : (
                                 <span
-                                  className="text-xs text-slate-300"
+                                  className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500"
                                   title="Denda telat hanya bisa diubah selama tagihan masih Belum Bayar"
                                 >
-                                  🔒
+                                  Terkunci
                                 </span>
                               )}
                             </span>
@@ -403,7 +421,14 @@ export function TaxBoxDetailDialog({
                       )}
 
                       {t.status === 'Belum Bayar' && (
-                        <div className="mb-3 flex justify-end">
+                        <div className="mb-3 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTargetId(t.id)}
+                            className="text-xs font-medium text-rose-600 hover:underline"
+                          >
+                            Hapus Tagihan
+                          </button>
                           <button
                             onClick={() => simulateCustomerUploadTax(t.id)}
                             className="text-xs text-slate-400 underline hover:text-slate-600"
@@ -511,6 +536,17 @@ export function TaxBoxDetailDialog({
       </div>
 
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+
+      {deleteTargetId && (
+        <ConfirmDialog
+          title={`Hapus Tagihan ${getCustomerName(
+            taxBills.find((t) => t.id === deleteTargetId)?.customerId ?? '',
+          )}?`}
+          message="Tindakan ini tidak bisa dibatalkan."
+          onConfirm={confirmDeleteBill}
+          onCancel={() => setDeleteTargetId(null)}
+        />
+      )}
     </div>
   )
 }

@@ -14,7 +14,12 @@ export function Modal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8"
-      onClick={onClose}
+      onClick={(e) => {
+        // Guards against nested overlays (ConfirmDialog, AlertDialog)
+        // rendered inside this same backdrop — a click bubbling up from
+        // one of those shouldn't also close this modal.
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <div
         className={`w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} rounded-xl bg-white shadow-xl`}
