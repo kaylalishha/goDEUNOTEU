@@ -10,6 +10,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { DeadlineBadge } from './DeadlineBadge'
 import { ImageLightbox } from './ImageLightbox'
 import { StatusBadge } from './StatusBadge'
+import { TrashIcon } from './TrashIcon'
 
 export function TaxBoxDetailDialog({
   boxNumber,
@@ -238,16 +239,6 @@ export function TaxBoxDetailDialog({
                 </span>
               )}
             </div>
-          </div>
-
-          <div className="mb-4 flex justify-end">
-            <button
-              type="button"
-              onClick={handleDeleteAllClick}
-              className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
-            >
-              Hapus Semua Tagihan di Box Ini
-            </button>
           </div>
 
           <div className="mb-4">
@@ -555,12 +546,13 @@ export function TaxBoxDetailDialog({
                       </div>
 
                       {t.status === 'Belum Bayar' && (
-                        <div className="mt-3 flex justify-end">
+                        <div className="mt-3 flex justify-start">
                           <button
                             type="button"
                             onClick={() => setDeleteTargetId(t.id)}
-                            className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
+                            className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
                           >
+                            <TrashIcon className="h-3.5 w-3.5 text-rose-600" />
                             Hapus Tagihan
                           </button>
                         </div>
@@ -570,6 +562,17 @@ export function TaxBoxDetailDialog({
                 </div>
               )
             })}
+          </div>
+
+          <div className="mt-4 flex justify-start border-t border-slate-200 pt-4">
+            <button
+              type="button"
+              onClick={handleDeleteAllClick}
+              className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+            >
+              <TrashIcon className="h-4 w-4 text-rose-600" />
+              Hapus Semua Tagihan di Box Ini
+            </button>
           </div>
         </div>
       </div>

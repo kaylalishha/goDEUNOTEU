@@ -3,6 +3,7 @@ import { formatDate } from '../lib/format'
 import { BOX_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
 import type { SaveBoxInput } from '../store/useStore'
 import { BOX_STATUS_OPTIONS, DEFAULT_BOX_STATUS, type Batch, type Box, type BoxStatus } from '../types'
+import { TrashIcon } from './TrashIcon'
 
 export function BoxForm({
   boxes,
@@ -189,8 +190,9 @@ export function BoxForm({
           <button
             type="button"
             onClick={onDelete}
-            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+            className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
           >
+            <TrashIcon className="h-4 w-4 text-rose-600" />
             Hapus Box
           </button>
         ) : (
