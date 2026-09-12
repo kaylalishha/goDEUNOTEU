@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
+import { AlertDialog } from '../components/AlertDialog'
 import { BatchForm } from '../components/BatchForm'
 import { BatchDetailDialog } from '../components/BatchDetailDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { CustomerCombobox } from '../components/CustomerCombobox'
+import { guardBatchDeletion } from '../lib/deleteGuards'
 import { formatDate, formatIDR } from '../lib/format'
 import {
   BATCH_BILL_STATUSES,
@@ -15,6 +18,7 @@ import {
   type OrderType,
 } from '../types'
 import { EmptyState } from '../components/EmptyState'
+import { PAGE_SIZE, Pagination } from '../components/Pagination'
 import type { SaveBatchInput } from '../store/useStore'
 
 const PAYMENT_PILL_TONE: Record<BatchBillStatus, string> = {
@@ -33,6 +37,7 @@ export default function OrderRecap() {
   const batches = useStore((s) => s.batches)
   const items = useStore((s) => s.items)
   const batchBills = useStore((s) => s.batchBills)
+  const taxBills = useStore((s) => s.taxBills)
   const customers = useStore((s) => s.customers)
   const getCustomerName = useStore((s) => s.getCustomerName)
   const saveBatch = useStore((s) => s.saveBatch)
@@ -50,6 +55,8 @@ export default function OrderRecap() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)
+  const [nothingToDeleteOpen, setNothingToDeleteOpen] = useState(false)
+  const [page, setPage] = useState(1)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
   const boxOptions = useMemo(
@@ -118,8 +125,12 @@ export default function OrderRecap() {
   })
   const sorted = [...filtered].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
 
-  const selectedInView = sorted.filter((b) => selectedIds.has(b.id)).length
-  const allInViewSelected = sorted.length > 0 && selectedInView === sorted.length
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  const selectedInView = pageItems.filter((b) => selectedIds.has(b.id)).length
+  const allInViewSelected = pageItems.length > 0 && selectedInView === pageItems.length
 
   useEffect(() => {
     if (selectAllRef.current) {
@@ -137,13 +148,14 @@ export default function OrderRecap() {
 
   // Shift-click selects the whole visible range in one go — the intended
   // workflow is checking a run of batches (eg. batch 1-200) that all
-  // belong to the same box, identified only after the fact.
+  // belong to the same box, identified only after the fact. Range is
+  // scoped to the current page, same as "select all".
   function handleRowCheckboxClick(batchId: string, index: number, shiftKey: boolean) {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (shiftKey && lastClickedIndex !== null) {
         const [start, end] = [lastClickedIndex, index].sort((a, b) => a - b)
-        for (let i = start; i <= end; i++) next.add(sorted[i].id)
+        for (let i = start; i <= end; i++) next.add(pageItems[i].id)
       } else if (next.has(batchId)) {
         next.delete(batchId)
       } else {
@@ -158,12 +170,20 @@ export default function OrderRecap() {
     setSelectedIds((prev) => {
       const next = new Set(prev)
       if (allInViewSelected) {
-        sorted.forEach((b) => next.delete(b.id))
+        pageItems.forEach((b) => next.delete(b.id))
       } else {
-        sorted.forEach((b) => next.add(b.id))
+        pageItems.forEach((b) => next.add(b.id))
       }
       return next
     })
+  }
+
+  function handleDeleteClick() {
+    if (eligibleBatchesToDelete.length === 0) {
+      setNothingToDeleteOpen(true)
+    } else {
+      setBulkDeleteConfirmOpen(true)
+    }
   }
 
   function handleBulkDeleteConfirm() {
@@ -172,9 +192,13 @@ export default function OrderRecap() {
     setBulkDeleteConfirmOpen(false)
   }
 
-  const selectedPaidBillCount = batchBills.filter(
-    (b) => selectedIds.has(b.batchId) && (b.status === 'Lunas' || b.status === 'Menunggu Konfirmasi'),
-  ).length
+  const selectedBatchesForDelete = batches.filter((b) => selectedIds.has(b.id))
+  const { eligible: eligibleBatchesToDelete, blocked: blockedBatchesToDelete } = guardBatchDeletion(
+    selectedBatchesForDelete,
+    items,
+    taxBills,
+    batchBills,
+  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -201,7 +225,10 @@ export default function OrderRecap() {
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={boxFilter}
-            onChange={(e) => setBoxFilter(e.target.value)}
+            onChange={(e) => {
+              setBoxFilter(e.target.value)
+              setPage(1)
+            }}
           >
             <option value="">Semua Box</option>
             {boxOptions.map((b) => (
@@ -216,7 +243,10 @@ export default function OrderRecap() {
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={batchFilter}
-            onChange={(e) => setBatchFilter(e.target.value)}
+            onChange={(e) => {
+              setBatchFilter(e.target.value)
+              setPage(1)
+            }}
           >
             <option value="">Semua Batch</option>
             {batchOptions.map((b) => (
@@ -226,27 +256,28 @@ export default function OrderRecap() {
             ))}
           </select>
         </div>
-        <div>
+        <div className="w-48">
           <label className="mb-1 block text-xs font-medium text-slate-500">Customer</label>
-          <select
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+          <CustomerCombobox
+            customers={customers}
             value={customerFilter}
-            onChange={(e) => setCustomerFilter(e.target.value)}
-          >
-            <option value="">Semua Customer</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            onChange={(customerId) => {
+              setCustomerFilter(customerId)
+              setPage(1)
+            }}
+            allowClear
+            clearLabel="Semua Customer"
+          />
         </div>
         <div>
           <label className="mb-1 block text-xs font-medium text-slate-500">Order Status</label>
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as OrderStatus | '')}
+            onChange={(e) => {
+              setStatusFilter(e.target.value as OrderStatus | '')
+              setPage(1)
+            }}
           >
             <option value="">Semua Status</option>
             {ORDER_STATUS_OPTIONS.map((s) => (
@@ -261,7 +292,10 @@ export default function OrderRecap() {
           <select
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             value={orderTypeFilter}
-            onChange={(e) => setOrderTypeFilter(e.target.value as OrderType | '')}
+            onChange={(e) => {
+              setOrderTypeFilter(e.target.value as OrderType | '')
+              setPage(1)
+            }}
           >
             <option value="">Semua Order Type</option>
             {ORDER_TYPE_OPTIONS.map((t) => (
@@ -281,6 +315,7 @@ export default function OrderRecap() {
               setStatusFilter('')
               setOrderTypeFilter('')
               setPaymentFilter('')
+              setPage(1)
             }}
           >
             Reset filter
@@ -291,7 +326,10 @@ export default function OrderRecap() {
 
       <div className="flex flex-wrap items-center gap-2">
         <button
-          onClick={() => setPaymentFilter('')}
+          onClick={() => {
+            setPaymentFilter('')
+            setPage(1)
+          }}
           className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
             paymentFilter === ''
               ? 'bg-slate-900 text-white ring-slate-900'
@@ -306,7 +344,10 @@ export default function OrderRecap() {
           return (
             <button
               key={s}
-              onClick={() => setPaymentFilter(s)}
+              onClick={() => {
+                setPaymentFilter(s)
+                setPage(1)
+              }}
               className={`relative rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
                 paymentFilter === s
                   ? 'bg-slate-900 text-white ring-slate-900'
@@ -331,7 +372,7 @@ export default function OrderRecap() {
           </span>
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setBulkDeleteConfirmOpen(true)}
+              onClick={handleDeleteClick}
               className="rounded-md border border-rose-300 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
             >
               Delete
@@ -375,7 +416,7 @@ export default function OrderRecap() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sorted.map((batch, index) => {
+              {pageItems.map((batch, index) => {
                 const batchItems = items.filter((i) => i.batchId === batch.id)
                 const customerIds = new Set(batchItems.map((i) => i.customerId))
                 const total = batchItems.reduce((sum, i) => sum + i.priceIDR, 0)
@@ -462,6 +503,7 @@ export default function OrderRecap() {
               })}
             </tbody>
           </table>
+          <Pagination page={safePage} totalItems={sorted.length} onPageChange={setPage} />
         </div>
       )}
 
@@ -512,13 +554,23 @@ export default function OrderRecap() {
         <ConfirmDialog
           title={`Hapus ${selectedIds.size} Batch Record?`}
           message={
-            `Tindakan ini tidak bisa dibatalkan — semua item dan tagihan pada batch yang dipilih akan ikut terhapus.` +
-            (selectedPaidBillCount > 0
-              ? ` ${selectedPaidBillCount} tagihan di antaranya sudah dibayar/menunggu konfirmasi.`
-              : '')
+            `${eligibleBatchesToDelete.length} batch akan dihapus, beserta item dan tagihannya.` +
+            (blockedBatchesToDelete.length > 0
+              ? ` ${blockedBatchesToDelete.length} batch dilewati karena punya item di tagihan pajak yang dipublikasikan, atau tagihan yang sudah dibayar/menunggu konfirmasi.`
+              : '') +
+            ' Tindakan ini tidak bisa dibatalkan.'
           }
           onConfirm={handleBulkDeleteConfirm}
           onCancel={() => setBulkDeleteConfirmOpen(false)}
+        />
+      )}
+
+      {nothingToDeleteOpen && (
+        <AlertDialog
+          tone="error"
+          title="Tidak Ada yang Bisa Dihapus"
+          message="Semua batch yang dipilih punya item di tagihan pajak yang dipublikasikan, atau tagihan yang sudah dibayar/menunggu konfirmasi — jadi tidak ada yang bisa dihapus."
+          onClose={() => setNothingToDeleteOpen(false)}
         />
       )}
     </div>

@@ -1,10 +1,16 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
+import { copyText } from '../lib/clipboard'
+import { guardTaxBillDeletion } from '../lib/deleteGuards'
 import { formatDate, formatIDR } from '../lib/format'
+import { buildTaxTagihanTemplate } from '../lib/taxTagihanTemplate'
 import { KARTU_FLAT_TAX_IDR } from '../types'
+import { AlertDialog } from './AlertDialog'
+import { ConfirmDialog } from './ConfirmDialog'
 import { DeadlineBadge } from './DeadlineBadge'
 import { ImageLightbox } from './ImageLightbox'
 import { StatusBadge } from './StatusBadge'
+import { TrashIcon } from './TrashIcon'
 
 export function TaxBoxDetailDialog({
   boxNumber,
@@ -21,9 +27,27 @@ export function TaxBoxDetailDialog({
   const confirmTaxBill = useStore((s) => s.confirmTaxBill)
   const rejectTaxBill = useStore((s) => s.rejectTaxBill)
   const simulateCustomerUploadTax = useStore((s) => s.simulateCustomerUploadTax)
+  const updateTaxBillAmount = useStore((s) => s.updateTaxBillAmount)
+  const updateTaxBillLateFee = useStore((s) => s.updateTaxBillLateFee)
+  const updateBoxDeadline = useStore((s) => s.updateBoxDeadline)
+  const deleteTaxBills = useStore((s) => s.deleteTaxBills)
+  const pushToast = useStore((s) => s.pushToast)
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [editingAmountId, setEditingAmountId] = useState<string | null>(null)
+  const [amountDraft, setAmountDraft] = useState('')
+  const [editingLateFeeId, setEditingLateFeeId] = useState<string | null>(null)
+  const [lateFeeDraft, setLateFeeDraft] = useState('')
+  const [editingDeadline, setEditingDeadline] = useState(false)
+  const [deadlineDraft, setDeadlineDraft] = useState('')
+  // Delete only ever targets one bill at a time, opened from inside its own
+  // row here — there's no bulk/table delete, so no wrong-checkbox risk.
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  // Deletes every eligible (Belum Bayar) bill in this box at once — still
+  // scoped to the one box already open, not a table-wide bulk action.
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
+  const [deleteAllBlockedOpen, setDeleteAllBlockedOpen] = useState(false)
 
   if (taxBills.length === 0) return null
 
@@ -40,6 +64,17 @@ export function TaxBoxDetailDialog({
     new Set(allBatches.filter((b) => b.boxNumber === boxNumber).map((b) => b.batchNumber)),
   ).sort()
 
+  const tagihanText = buildTaxTagihanTemplate({
+    boxNumber,
+    customerNames: taxBills.map((t) => getCustomerName(t.customerId)),
+    deadline: boxDeadline,
+  })
+
+  async function handleCopyTagihan() {
+    const ok = await copyText(tagihanText)
+    pushToast(ok ? 'Teks tagihan pajak disalin.' : 'Gagal menyalin teks tagihan.', ok ? 'success' : 'error')
+  }
+
   function toggle(id: string) {
     setExpanded((set) => {
       const next = new Set(set)
@@ -49,9 +84,82 @@ export function TaxBoxDetailDialog({
     })
   }
 
+  function startEditingAmount(taxBillId: string, currentTotal: number) {
+    setEditingAmountId(taxBillId)
+    setAmountDraft(String(currentTotal))
+  }
+
+  function saveAmount(taxBillId: string) {
+    const value = Number(amountDraft)
+    if (Number.isFinite(value) && value >= 0) {
+      updateTaxBillAmount(taxBillId, value)
+    }
+    setEditingAmountId(null)
+  }
+
+  function startEditingLateFee(taxBillId: string, currentLateFee: number) {
+    setEditingLateFeeId(taxBillId)
+    setLateFeeDraft(String(currentLateFee))
+  }
+
+  function saveLateFee(taxBillId: string) {
+    const value = Number(lateFeeDraft)
+    if (Number.isFinite(value) && value >= 0) {
+      updateTaxBillLateFee(taxBillId, value)
+    }
+    setEditingLateFeeId(null)
+  }
+
+  function startEditingDeadline() {
+    setDeadlineDraft(boxDeadline.slice(0, 10))
+    setEditingDeadline(true)
+  }
+
+  function saveDeadline() {
+    if (deadlineDraft) {
+      const existingTime = boxDeadline.slice(11)
+      updateBoxDeadline(boxNumber, new Date(`${deadlineDraft}T${existingTime}`).toISOString())
+    }
+    setEditingDeadline(false)
+  }
+
+  function confirmDeleteBill() {
+    if (!deleteTargetId) return
+    deleteTaxBills([deleteTargetId])
+    setDeleteTargetId(null)
+    // Deleting the last bill in the box leaves nothing left to show here.
+    if (taxBills.length <= 1) onClose()
+  }
+
+  function handleDeleteAllClick() {
+    const { eligible } = guardTaxBillDeletion(taxBills)
+    if (eligible.length === 0) {
+      setDeleteAllBlockedOpen(true)
+    } else {
+      setDeleteAllConfirmOpen(true)
+    }
+  }
+
+  function confirmDeleteAll() {
+    const { eligible } = guardTaxBillDeletion(taxBills)
+    deleteTaxBills(eligible.map((t) => t.id))
+    setDeleteAllConfirmOpen(false)
+    // Only Lunas/Menunggu Konfirmasi bills survive a "delete all" — if
+    // every bill in the box was eligible, there's nothing left to show.
+    if (eligible.length === taxBills.length) onClose()
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8">
-      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8"
+      onClick={(e) => {
+        // Guards against nested overlays (ConfirmDialog, AlertDialog,
+        // ImageLightbox) rendered inside this same backdrop — a click
+        // bubbling up from one of those shouldn't also close this dialog.
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <h2 className="text-base font-bold text-rose-600">
@@ -93,7 +201,60 @@ export function TaxBoxDetailDialog({
               <span className="mb-0.5 block text-slate-400">
                 Deadline Pembayaran <span className="text-slate-300">(satu box, satu deadline)</span>
               </span>
-              <DeadlineBadge deadline={boxDeadline} isPaid={allLunas} />
+              {editingDeadline ? (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="date"
+                    autoFocus
+                    value={deadlineDraft}
+                    onChange={(e) => setDeadlineDraft(e.target.value)}
+                    className="rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveDeadline}
+                    className="text-xs font-medium text-emerald-600 hover:underline"
+                  >
+                    Simpan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDeadline(false)}
+                    className="text-xs text-slate-400 hover:underline"
+                  >
+                    Batal
+                  </button>
+                </div>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <DeadlineBadge deadline={boxDeadline} isPaid={allLunas} />
+                  <button
+                    type="button"
+                    onClick={startEditingDeadline}
+                    className="text-xs text-rose-600 hover:underline"
+                    title="Edit deadline pembayaran box ini"
+                  >
+                    Edit
+                  </button>
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Template Tagihan Pajak
+            </p>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+              <pre className="max-h-64 overflow-y-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-slate-700">
+                {tagihanText}
+              </pre>
+              <button
+                onClick={handleCopyTagihan}
+                className="mt-2 text-xs font-medium text-rose-600 hover:underline"
+              >
+                copy
+              </button>
             </div>
           </div>
 
@@ -117,7 +278,9 @@ export function TaxBoxDetailDialog({
                     <span className="flex items-center gap-3">
                       <span className="text-right text-xs text-slate-500">
                         <span className="block">{itemIds.length} item</span>
-                        <span className="font-semibold text-slate-800">{formatIDR(t.total)}</span>
+                        <span className="font-semibold text-slate-800">
+                          {formatIDR(t.total + t.lateFeeIDR)}
+                        </span>
                       </span>
                       <StatusBadge status={t.status} />
                       <span className="text-slate-400">{isOpen ? '︿' : '﹀'}</span>
@@ -153,8 +316,110 @@ export function TaxBoxDetailDialog({
                           </span>
                         </div>
                         <div>
+                          <span className="block text-xs text-slate-400">pajak produk</span>
+                          {editingAmountId === t.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={0}
+                                autoFocus
+                                value={amountDraft}
+                                onChange={(e) => setAmountDraft(e.target.value)}
+                                className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => saveAmount(t.id)}
+                                className="text-xs font-medium text-emerald-600 hover:underline"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingAmountId(null)}
+                                className="text-xs text-slate-400 hover:underline"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <span className="font-medium text-slate-800">{formatIDR(t.total)}</span>
+                              {t.status !== 'Lunas' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingAmount(t.id, t.total)}
+                                  className="text-xs text-rose-600 hover:underline"
+                                  title="Edit jumlah tagihan"
+                                >
+                                  Edit
+                                </button>
+                              ) : (
+                                <span
+                                  className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500"
+                                  title="Tagihan yang sudah lunas tidak bisa diubah"
+                                >
+                                  Terkunci
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <span className="block text-xs text-slate-400">denda telat</span>
+                          {editingLateFeeId === t.id ? (
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={0}
+                                autoFocus
+                                value={lateFeeDraft}
+                                onChange={(e) => setLateFeeDraft(e.target.value)}
+                                className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => saveLateFee(t.id)}
+                                className="text-xs font-medium text-emerald-600 hover:underline"
+                              >
+                                Simpan
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingLateFeeId(null)}
+                                className="text-xs text-slate-400 hover:underline"
+                              >
+                                Batal
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <span className="font-medium text-slate-800">{formatIDR(t.lateFeeIDR)}</span>
+                              {t.status === 'Belum Bayar' ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEditingLateFee(t.id, t.lateFeeIDR)}
+                                  className="text-xs text-rose-600 hover:underline"
+                                  title="Edit denda telat"
+                                >
+                                  Edit
+                                </button>
+                              ) : (
+                                <span
+                                  className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-500"
+                                  title="Denda telat hanya bisa diubah selama tagihan masih Belum Bayar"
+                                >
+                                  Terkunci
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </div>
+                        <div>
                           <span className="block text-xs text-slate-400">total tagihan</span>
-                          <span className="font-medium text-slate-800">{formatIDR(t.total)}</span>
+                          <span className="font-semibold text-slate-800">
+                            {formatIDR(t.total + t.lateFeeIDR)}
+                          </span>
                         </div>
                       </div>
 
@@ -193,7 +458,10 @@ export function TaxBoxDetailDialog({
                       )}
 
                       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Rincian per Batch
+                        Rincian per Batch{' '}
+                        <span className="font-normal normal-case text-slate-400">
+                          — acuan awal dari perhitungan proporsional. Jumlah final ada di "total tagihan" di atas.
+                        </span>
                       </p>
                       <div className="overflow-hidden rounded-lg border border-slate-200">
                         <div className="overflow-x-auto">
@@ -276,16 +544,78 @@ export function TaxBoxDetailDialog({
                           </table>
                         </div>
                       </div>
+
+                      {t.status === 'Belum Bayar' && (
+                        <div className="mt-3 flex justify-start">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTargetId(t.id)}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+                          >
+                            <TrashIcon className="h-3.5 w-3.5 text-rose-600" />
+                            Hapus Tagihan
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
               )
             })}
           </div>
+
+          <div className="mt-4 flex justify-start border-t border-slate-200 pt-4">
+            <button
+              type="button"
+              onClick={handleDeleteAllClick}
+              className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+            >
+              <TrashIcon className="h-4 w-4 text-rose-600" />
+              Hapus Semua Tagihan di Box Ini
+            </button>
+          </div>
         </div>
       </div>
 
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+
+      {deleteTargetId && (
+        <ConfirmDialog
+          title={`Hapus Tagihan ${getCustomerName(
+            taxBills.find((t) => t.id === deleteTargetId)?.customerId ?? '',
+          )}?`}
+          message="Tindakan ini tidak bisa dibatalkan."
+          onConfirm={confirmDeleteBill}
+          onCancel={() => setDeleteTargetId(null)}
+        />
+      )}
+
+      {deleteAllConfirmOpen && (
+        <ConfirmDialog
+          title={`Hapus Semua Tagihan di ${boxNumber}?`}
+          message={(() => {
+            const { eligible, blocked } = guardTaxBillDeletion(taxBills)
+            return (
+              `${eligible.length} tagihan akan dihapus` +
+              (blocked.length > 0
+                ? `, ${blocked.length} tagihan dilewati karena sudah dibayar/menunggu konfirmasi.`
+                : '.') +
+              ' Tindakan ini tidak bisa dibatalkan.'
+            )
+          })()}
+          onConfirm={confirmDeleteAll}
+          onCancel={() => setDeleteAllConfirmOpen(false)}
+        />
+      )}
+
+      {deleteAllBlockedOpen && (
+        <AlertDialog
+          tone="error"
+          title="Tidak Ada yang Bisa Dihapus"
+          message="Semua tagihan pajak di box ini sudah dibayar atau menunggu konfirmasi pembayaran, jadi tidak ada yang bisa dihapus."
+          onClose={() => setDeleteAllBlockedOpen(false)}
+        />
+      )}
     </div>
   )
 }

@@ -1,26 +1,56 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
+import { AlertDialog } from '../components/AlertDialog'
 import { BoxForm } from '../components/BoxForm'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState } from '../components/EmptyState'
+import { PAGE_SIZE, Pagination } from '../components/Pagination'
+import { guardBoxDeletion } from '../lib/deleteGuards'
 import { formatDate } from '../lib/format'
-import { BOX_STATUS_OPTIONS, type Box, type BoxStatus } from '../types'
+import type { Box } from '../types'
 
 export default function BoxManagement() {
   const boxes = useStore((s) => s.boxes)
   const batches = useStore((s) => s.batches)
+  const taxBills = useStore((s) => s.taxBills)
   const saveBox = useStore((s) => s.saveBox)
-  const setBoxStatus = useStore((s) => s.setBoxStatus)
+  const deleteBoxes = useStore((s) => s.deleteBoxes)
 
   const [formOpen, setFormOpen] = useState(false)
-  const [editingBox, setEditingBox] = useState<Box | null>(null)
+  const [viewingBox, setViewingBox] = useState<Box | null>(null)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleteBlockedOpen, setDeleteBlockedOpen] = useState(false)
+  const [page, setPage] = useState(1)
 
   const sorted = [...boxes].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = sorted.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   function batchNumbersFor(box: Box) {
     return box.batchIds
       .map((id) => batches.find((b) => b.id === id)?.batchNumber)
       .filter((n): n is string => Boolean(n))
+  }
+
+  // Delete only ever targets the box currently open in the detail card —
+  // there's no bulk/table delete, so a wrong-checkbox mistake isn't possible.
+  function handleDeleteClick() {
+    if (!viewingBox) return
+    const { eligible } = guardBoxDeletion([viewingBox], taxBills)
+    if (eligible.length === 0) {
+      setDeleteBlockedOpen(true)
+    } else {
+      setDeleteConfirmOpen(true)
+    }
+  }
+
+  function handleDeleteConfirm() {
+    if (!viewingBox) return
+    deleteBoxes([viewingBox.id])
+    setDeleteConfirmOpen(false)
+    setViewingBox(null)
   }
 
   return (
@@ -31,6 +61,7 @@ export default function BoxManagement() {
           <p className="text-sm text-slate-500">
             Kelompokkan batch ke dalam satu box pengiriman. Sebuah box dikirim sebagai satu
             kesatuan — mengubah status box otomatis memperbarui status semua batch di dalamnya.
+            Klik sebuah box untuk melihat dan mengedit detailnya.
           </p>
         </div>
         <button
@@ -52,45 +83,33 @@ export default function BoxManagement() {
                 <th className="px-4 py-3">Batch(es)</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Created At</th>
-                <th className="px-4 py-3"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sorted.map((box) => {
+              {pageItems.map((box) => {
                 const batchNumbers = batchNumbersFor(box)
                 return (
-                  <tr key={box.id} className="hover:bg-slate-50">
+                  <tr
+                    key={box.id}
+                    className="cursor-pointer hover:bg-slate-50"
+                    onClick={() => setViewingBox(box)}
+                  >
                     <td className="px-4 py-3 font-medium text-slate-900">{box.boxNumber}</td>
                     <td className="px-4 py-3 text-slate-700">
                       {batchNumbers.length > 0 ? batchNumbers.join(', ') : '—'}
                     </td>
                     <td className="px-4 py-3">
-                      <select
-                        value={box.status}
-                        onChange={(e) => setBoxStatus(box.id, e.target.value as BoxStatus)}
-                        className="rounded-md border border-slate-300 px-2 py-1.5 text-xs font-medium text-slate-700 focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
-                      >
-                        {BOX_STATUS_OPTIONS.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                        {box.status}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-slate-500">{formatDate(box.createdAt)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => setEditingBox(box)}
-                        className="text-xs font-medium text-rose-600 hover:underline"
-                      >
-                        Edit
-                      </button>
-                    </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          <Pagination page={safePage} totalItems={sorted.length} onPageChange={setPage} />
         </div>
       )}
 
@@ -108,19 +127,42 @@ export default function BoxManagement() {
         </Modal>
       )}
 
-      {editingBox && (
-        <Modal title={`Edit Box — ${editingBox.boxNumber}`} onClose={() => setEditingBox(null)} wide>
+      {viewingBox && (
+        <Modal title={`Box Detail — ${viewingBox.boxNumber}`} onClose={() => setViewingBox(null)} wide>
           <BoxForm
             boxes={boxes}
             batches={batches}
-            initial={editingBox}
+            initial={viewingBox}
             onSubmit={(input) => {
               saveBox(input)
-              setEditingBox(null)
+              setViewingBox(null)
             }}
-            onCancel={() => setEditingBox(null)}
+            onCancel={() => setViewingBox(null)}
+            onDelete={handleDeleteClick}
           />
         </Modal>
+      )}
+
+      {deleteConfirmOpen && viewingBox && (
+        <ConfirmDialog
+          title={`Hapus ${viewingBox.boxNumber}?`}
+          message={
+            viewingBox.batchIds.length > 0
+              ? `${viewingBox.batchIds.length} batch di dalamnya akan kembali ke status "Dibeli dari Seller". Tindakan ini tidak bisa dibatalkan.`
+              : 'Tindakan ini tidak bisa dibatalkan.'
+          }
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteConfirmOpen(false)}
+        />
+      )}
+
+      {deleteBlockedOpen && (
+        <AlertDialog
+          tone="error"
+          title="Box Ini Belum Bisa Dihapus"
+          message="Box ini masih punya tagihan pajak yang dipublikasikan — hapus tagihannya dulu di halaman Tax Bills sebelum menghapus box ini."
+          onClose={() => setDeleteBlockedOpen(false)}
+        />
       )}
     </div>
   )

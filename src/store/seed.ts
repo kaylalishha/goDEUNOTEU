@@ -45,6 +45,16 @@ export const seedCustomers: Customer[] = [
   { id: 'cust_citra', name: 'Citra Wulandari' },
   { id: 'cust_dewi', name: 'Dewi Anggraini' },
   { id: 'cust_eka', name: 'Eka Putri' },
+  { id: 'cust_fitri', name: 'Fitri Handayani' },
+  { id: 'cust_gita', name: 'Gita Ramadhani' },
+  { id: 'cust_hana', name: 'Hana Safitri' },
+  { id: 'cust_intan', name: 'Intan Permata' },
+  { id: 'cust_jihan', name: 'Jihan Salsabila' },
+  { id: 'cust_kirana', name: 'Kirana Putri' },
+  { id: 'cust_larasati', name: 'Larasati Wibowo' },
+  { id: 'cust_maya', name: 'Maya Kusuma' },
+  { id: 'cust_nadia', name: 'Nadia Rahmawati' },
+  { id: 'cust_olivia', name: 'Olivia Setiawan' },
 ]
 
 export const seedBatches: Batch[] = [
@@ -526,6 +536,7 @@ export const seedTaxBills: TaxBill[] = [
     nonKartuWeightGrams: 0,
     nonKartuShare: 0,
     total: 10000,
+    lateFeeIDR: 5000,
     publishedAt: daysAgoIso(6),
     // Every batch under one box shares the same payment deadline.
     deadline: daysAgoIso(2),
@@ -541,6 +552,7 @@ export const seedTaxBills: TaxBill[] = [
     nonKartuWeightGrams: 420,
     nonKartuShare: 57534,
     total: 57534,
+    lateFeeIDR: 0,
     publishedAt: daysAgoIso(9),
     deadline: daysAgoIso(2),
     status: 'Belum Bayar',
@@ -555,6 +567,7 @@ export const seedTaxBills: TaxBill[] = [
     nonKartuWeightGrams: 310,
     nonKartuShare: 42465,
     total: 47465,
+    lateFeeIDR: 0,
     publishedAt: daysAgoIso(9),
     deadline: daysAgoIso(2),
     status: 'Lunas',

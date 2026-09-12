@@ -62,8 +62,16 @@ export function BatchDetailDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8">
-      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8"
+      onClick={(e) => {
+        // Guards against nested overlays (ImageLightbox) rendered inside
+        // this same backdrop — a click bubbling up from one of those
+        // shouldn't also close this dialog.
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-rose-600">
