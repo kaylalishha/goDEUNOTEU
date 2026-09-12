@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { copyText } from '../lib/clipboard'
+import { guardTaxBillDeletion } from '../lib/deleteGuards'
 import { formatDate, formatIDR } from '../lib/format'
 import { buildTaxTagihanTemplate } from '../lib/taxTagihanTemplate'
 import { KARTU_FLAT_TAX_IDR } from '../types'
+import { AlertDialog } from './AlertDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeadlineBadge } from './DeadlineBadge'
 import { ImageLightbox } from './ImageLightbox'
@@ -41,6 +43,10 @@ export function TaxBoxDetailDialog({
   // Delete only ever targets one bill at a time, opened from inside its own
   // row here — there's no bulk/table delete, so no wrong-checkbox risk.
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  // Deletes every eligible (Belum Bayar) bill in this box at once — still
+  // scoped to the one box already open, not a table-wide bulk action.
+  const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
+  const [deleteAllBlockedOpen, setDeleteAllBlockedOpen] = useState(false)
 
   if (taxBills.length === 0) return null
 
@@ -122,6 +128,24 @@ export function TaxBoxDetailDialog({
     setDeleteTargetId(null)
     // Deleting the last bill in the box leaves nothing left to show here.
     if (taxBills.length <= 1) onClose()
+  }
+
+  function handleDeleteAllClick() {
+    const { eligible } = guardTaxBillDeletion(taxBills)
+    if (eligible.length === 0) {
+      setDeleteAllBlockedOpen(true)
+    } else {
+      setDeleteAllConfirmOpen(true)
+    }
+  }
+
+  function confirmDeleteAll() {
+    const { eligible } = guardTaxBillDeletion(taxBills)
+    deleteTaxBills(eligible.map((t) => t.id))
+    setDeleteAllConfirmOpen(false)
+    // Only Lunas/Menunggu Konfirmasi bills survive a "delete all" — if
+    // every bill in the box was eligible, there's nothing left to show.
+    if (eligible.length === taxBills.length) onClose()
   }
 
   return (
@@ -214,6 +238,16 @@ export function TaxBoxDetailDialog({
                 </span>
               )}
             </div>
+          </div>
+
+          <div className="mb-4 flex justify-end">
+            <button
+              type="button"
+              onClick={handleDeleteAllClick}
+              className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
+            >
+              Hapus Semua Tagihan di Box Ini
+            </button>
           </div>
 
           <div className="mb-4">
@@ -421,14 +455,7 @@ export function TaxBoxDetailDialog({
                       )}
 
                       {t.status === 'Belum Bayar' && (
-                        <div className="mb-3 flex items-center justify-between">
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTargetId(t.id)}
-                            className="text-xs font-medium text-rose-600 hover:underline"
-                          >
-                            Hapus Tagihan
-                          </button>
+                        <div className="mb-3 flex justify-end">
                           <button
                             onClick={() => simulateCustomerUploadTax(t.id)}
                             className="text-xs text-slate-400 underline hover:text-slate-600"
@@ -526,6 +553,18 @@ export function TaxBoxDetailDialog({
                           </table>
                         </div>
                       </div>
+
+                      {t.status === 'Belum Bayar' && (
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setDeleteTargetId(t.id)}
+                            className="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700"
+                          >
+                            Hapus Tagihan
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -545,6 +584,33 @@ export function TaxBoxDetailDialog({
           message="Tindakan ini tidak bisa dibatalkan."
           onConfirm={confirmDeleteBill}
           onCancel={() => setDeleteTargetId(null)}
+        />
+      )}
+
+      {deleteAllConfirmOpen && (
+        <ConfirmDialog
+          title={`Hapus Semua Tagihan di ${boxNumber}?`}
+          message={(() => {
+            const { eligible, blocked } = guardTaxBillDeletion(taxBills)
+            return (
+              `${eligible.length} tagihan akan dihapus` +
+              (blocked.length > 0
+                ? `, ${blocked.length} tagihan dilewati karena sudah dibayar/menunggu konfirmasi.`
+                : '.') +
+              ' Tindakan ini tidak bisa dibatalkan.'
+            )
+          })()}
+          onConfirm={confirmDeleteAll}
+          onCancel={() => setDeleteAllConfirmOpen(false)}
+        />
+      )}
+
+      {deleteAllBlockedOpen && (
+        <AlertDialog
+          tone="error"
+          title="Tidak Ada yang Bisa Dihapus"
+          message="Semua tagihan pajak di box ini sudah dibayar atau menunggu konfirmasi pembayaran, jadi tidak ada yang bisa dihapus."
+          onClose={() => setDeleteAllBlockedOpen(false)}
         />
       )}
     </div>

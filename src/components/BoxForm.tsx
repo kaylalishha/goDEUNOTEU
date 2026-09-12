@@ -189,7 +189,7 @@ export function BoxForm({
           <button
             type="button"
             onClick={onDelete}
-            className="text-sm font-medium text-rose-600 hover:underline"
+            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
           >
             Hapus Box
           </button>
