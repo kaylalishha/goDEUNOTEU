@@ -5,6 +5,7 @@ import { TaxCalculationForm } from '../components/TaxCalculationForm'
 import { TaxBoxDetailDialog } from '../components/TaxBoxDetailDialog'
 import { DeadlineBadge } from '../components/DeadlineBadge'
 import { EmptyState } from '../components/EmptyState'
+import { PAGE_SIZE, Pagination } from '../components/Pagination'
 import { daysRemaining, formatDate, formatIDR } from '../lib/format'
 import { TAX_BILL_STATUSES, type TaxBill, type TaxBillStatus } from '../types'
 
@@ -15,6 +16,7 @@ const STATUS_PILL_TONE: Record<TaxBillStatus, string> = {
 }
 
 interface BoxGroup {
+  boxId: string
   boxNumber: string
   bills: TaxBill[]
   total: number
@@ -26,29 +28,38 @@ interface BoxGroup {
 export default function TaxBills() {
   const customers = useStore((s) => s.customers)
   const batches = useStore((s) => s.batches)
+  const boxes = useStore((s) => s.boxes)
   const items = useStore((s) => s.items)
   const taxBills = useStore((s) => s.taxBills)
   const publishTaxBills = useStore((s) => s.publishTaxBills)
   const setItemWeights = useStore((s) => s.setItemWeights)
   const getCustomerName = useStore((s) => s.getCustomerName)
+  const getBoxNumber = useStore((s) => s.getBoxNumber)
 
   const [formOpen, setFormOpen] = useState(false)
   const [statusFilter, setStatusFilter] = useState<TaxBillStatus | ''>('')
   const [customerQuery, setCustomerQuery] = useState('')
-  const [viewingBoxNumber, setViewingBoxNumber] = useState<string | null>(null)
+  const [viewingBoxId, setViewingBoxId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
 
-  const boxOptions = useMemo(
-    () => Array.from(new Set(batches.map((b) => b.boxNumber).filter(Boolean))) as string[],
-    [batches],
-  )
+  const boxOptions = useMemo(() => {
+    const idsWithBatches = new Set(batches.map((b) => b.boxId).filter(Boolean))
+    return boxes
+      .filter((box) => idsWithBatches.has(box.id))
+      .map((box) => ({ id: box.id, boxNumber: box.boxNumber }))
+  }, [boxes, batches])
 
-  function itemsByBox(boxNumber: string) {
-    const batchIds = new Set(batches.filter((b) => b.boxNumber === boxNumber).map((b) => b.id))
+  function itemsByBox(boxId: string) {
+    const batchIds = new Set(batches.filter((b) => b.boxId === boxId).map((b) => b.id))
     return items.filter((i) => batchIds.has(i.batchId))
   }
 
-  function alreadyPublishedCustomerIds(boxNumber: string) {
-    return new Set(taxBills.filter((t) => t.boxNumber === boxNumber).map((t) => t.customerId))
+  function alreadyPublishedCustomerIds(boxId: string) {
+    return new Set(taxBills.filter((t) => t.boxId === boxId).map((t) => t.customerId))
+  }
+
+  function boxDeadlineFor(boxId: string) {
+    return taxBills.find((t) => t.boxId === boxId)?.deadline
   }
 
   // Dashboard shows one row per box; clicking a box opens the per-customer
@@ -56,9 +67,9 @@ export default function TaxBills() {
   const boxGroups: BoxGroup[] = useMemo(() => {
     const map = new Map<string, TaxBill[]>()
     for (const t of taxBills) {
-      map.set(t.boxNumber, [...(map.get(t.boxNumber) ?? []), t])
+      map.set(t.boxId, [...(map.get(t.boxId) ?? []), t])
     }
-    return Array.from(map.entries()).map(([boxNumber, bills]) => {
+    return Array.from(map.entries()).map(([boxId, bills]) => {
       const counts = TAX_BILL_STATUSES.reduce(
         (acc, s) => {
           acc[s] = bills.filter((b) => b.status === s).length
@@ -75,7 +86,8 @@ export default function TaxBills() {
         bills[0].publishedAt,
       )
       return {
-        boxNumber,
+        boxId,
+        boxNumber: getBoxNumber(boxId),
         bills,
         total: bills.reduce((sum, b) => sum + b.total, 0),
         counts,
@@ -83,6 +95,7 @@ export default function TaxBills() {
         publishedAt,
       }
     })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [taxBills])
 
   const normalizedQuery = customerQuery.trim().toLowerCase()
@@ -97,6 +110,10 @@ export default function TaxBills() {
     return true
   })
   const sortedBoxes = [...filteredBoxes].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt))
+
+  const totalPages = Math.max(1, Math.ceil(sortedBoxes.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages)
+  const pageItems = sortedBoxes.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
   const counts = TAX_BILL_STATUSES.reduce<Record<string, number>>((acc, s) => {
     acc[s] = taxBills.filter((t) => t.status === s).length
@@ -122,7 +139,7 @@ export default function TaxBills() {
         <div>
           <h2 className="text-xl font-bold text-slate-900">C · Tax Bill Management (Tagihan Pajak EMS)</h2>
           <p className="text-sm text-slate-500">
-            Hitung pembagian pajak per box, publikasikan ke customer, dan pantau deadline 7 hari. Klik
+            Hitung pembagian pajak per box, publikasikan ke customer, dan pantau deadline pembayaran. Klik
             sebuah box untuk melihat rincian tagihan tiap customer.
           </p>
         </div>
@@ -136,14 +153,17 @@ export default function TaxBills() {
 
       {overdueCount > 0 && (
         <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-700">
-          {overdueCount} tagihan pajak sudah melewati deadline 7 hari dan masih belum lunas.
+          {overdueCount} tagihan pajak sudah melewati deadline pembayaran dan masih belum lunas.
         </div>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <button
-            onClick={() => setStatusFilter('')}
+            onClick={() => {
+              setStatusFilter('')
+              setPage(1)
+            }}
             className={`rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
               statusFilter === '' ? 'bg-slate-900 text-white ring-slate-900' : 'bg-white text-slate-600 ring-slate-200'
             }`}
@@ -155,7 +175,10 @@ export default function TaxBills() {
             return (
               <button
                 key={s}
-                onClick={() => setStatusFilter(s)}
+                onClick={() => {
+                  setStatusFilter(s)
+                  setPage(1)
+                }}
                 className={`relative rounded-full px-3 py-1.5 text-xs font-medium ring-1 ring-inset ${
                   statusFilter === s
                     ? 'bg-slate-900 text-white ring-slate-900'
@@ -176,7 +199,10 @@ export default function TaxBills() {
           <input
             type="text"
             value={customerQuery}
-            onChange={(e) => setCustomerQuery(e.target.value)}
+            onChange={(e) => {
+              setCustomerQuery(e.target.value)
+              setPage(1)
+            }}
             placeholder="Cari nama customer…"
             aria-label="Cari nama customer"
             className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
@@ -184,7 +210,10 @@ export default function TaxBills() {
           {customerQuery && (
             <button
               type="button"
-              onClick={() => setCustomerQuery('')}
+              onClick={() => {
+                setCustomerQuery('')
+                setPage(1)
+              }}
               aria-label="Hapus pencarian"
               className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
             >
@@ -216,21 +245,17 @@ export default function TaxBills() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {sortedBoxes.map((group) => {
+              {pageItems.map((group) => {
                 const hasPendingConfirmation = group.counts['Menunggu Konfirmasi'] > 0
                 return (
                 <tr
-                  key={group.boxNumber}
-                  className="cursor-pointer hover:bg-slate-50"
-                  onClick={() => setViewingBoxNumber(group.boxNumber)}
+                  key={group.boxId}
+                  className={`cursor-pointer border-l-4 hover:bg-slate-50 ${
+                    hasPendingConfirmation ? 'border-l-amber-400' : 'border-l-transparent'
+                  }`}
+                  onClick={() => setViewingBoxId(group.boxId)}
                 >
-                  <td
-                    className={`border-l-4 px-4 py-3 font-medium text-slate-900 ${
-                      hasPendingConfirmation ? 'border-amber-400' : 'border-transparent'
-                    }`}
-                  >
-                    {group.boxNumber}
-                  </td>
+                  <td className="px-4 py-3 font-medium text-slate-900">{group.boxNumber}</td>
                   <td className="px-4 py-3 font-semibold text-slate-900">{formatIDR(group.total)}</td>
                   <td className="px-4 py-3 text-slate-700">{group.bills.length} customer</td>
                   <td className="px-4 py-3">
@@ -260,6 +285,7 @@ export default function TaxBills() {
               })}
             </tbody>
           </table>
+          <Pagination page={safePage} totalItems={sortedBoxes.length} onPageChange={setPage} />
         </div>
       )}
 
@@ -270,6 +296,7 @@ export default function TaxBills() {
             itemsByBox={itemsByBox}
             customers={customers}
             alreadyPublishedCustomerIds={alreadyPublishedCustomerIds}
+            boxDeadlineFor={boxDeadlineFor}
             onSaveWeights={setItemWeights}
             onPublish={publishTaxBills}
             onCancel={() => setFormOpen(false)}
@@ -277,8 +304,8 @@ export default function TaxBills() {
         </Modal>
       )}
 
-      {viewingBoxNumber && (
-        <TaxBoxDetailDialog boxNumber={viewingBoxNumber} onClose={() => setViewingBoxNumber(null)} />
+      {viewingBoxId && (
+        <TaxBoxDetailDialog boxId={viewingBoxId} onClose={() => setViewingBoxId(null)} />
       )}
     </div>
   )
