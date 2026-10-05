@@ -2,6 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { makeId } from '../lib/id'
 import { guardBatchDeletion, guardBoxDeletion, guardTaxBillDeletion } from '../lib/deleteGuards'
+import * as remote from '../lib/remote'
+import { isSupabaseConfigured } from '../lib/supabaseClient'
 import {
   seedBatchBills,
   seedBatches,
@@ -30,6 +32,21 @@ import type {
 import { DEFAULT_BOX_STATUS, PAYMENT_METHOD_OPTIONS } from '../types'
 
 const DEFAULT_BANK_ACCOUNT = 'BCA 1234567890 a.n. Admin GO Aikatsu'
+
+// Two data modes, picked once at startup:
+//   - Supabase configured (.env has VITE_SUPABASE_URL/ANON_KEY): every
+//     action writes through src/lib/remote.ts, then reloads the snapshot
+//     from the database. Nothing is kept in localStorage.
+//   - Not configured: the original demo mode — seed data, persisted to
+//     localStorage, all logic runs in this file.
+// Either way the state shape is identical, so pages don't care which.
+const isRemote = isSupabaseConfigured
+
+export type SyncStatus = 'idle' | 'loading' | 'ready' | 'error'
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Terjadi kesalahan tak terduga.'
+}
 
 interface Toast {
   id: string
@@ -76,6 +93,14 @@ interface StoreState {
   estimatorConfig: EstimatorConfig
   toasts: Toast[]
 
+  // Supabase mode only (always 'ready' in demo mode). loadRemote replaces
+  // all data with a fresh snapshot from the database; clearRemote wipes
+  // it on sign-out.
+  syncStatus: SyncStatus
+  syncError: string | null
+  loadRemote: () => Promise<void>
+  clearRemote: () => void
+
   // customers
   getCustomerName: (customerId: string) => string
   // boxes — boxNumber is display-only, resolved live from the Box record;
@@ -91,17 +116,17 @@ interface StoreState {
   // orderStatus and box membership are never touched here — a batch always
   // starts at "Dibeli dari Seller" and only Feature B (Box Management)
   // can move it, since a box ships as one unit.
-  saveBatch: (input: SaveBatchInput) => void
+  saveBatch: (input: SaveBatchInput) => Promise<boolean>
   // Deletes one or many batch records along with their items and bills —
   // but only the ones that are actually safe to delete. A batch whose
   // items are already in a published tax bill, or whose own bill is
   // Lunas/Menunggu Konfirmasi, is skipped rather than deleted; see
   // src/lib/deleteGuards.ts for the exact rule.
-  deleteBatches: (batchIds: string[]) => void
-  setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
-  simulateCustomerUploadBatch: (batchBillId: string) => void
-  confirmBatchBill: (batchBillId: string) => void
-  rejectBatchBill: (batchBillId: string) => void
+  deleteBatches: (batchIds: string[]) => Promise<boolean>
+  setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => Promise<boolean>
+  simulateCustomerUploadBatch: (batchBillId: string) => Promise<boolean>
+  confirmBatchBill: (batchBillId: string) => Promise<boolean>
+  rejectBatchBill: (batchBillId: string) => Promise<boolean>
 
   // Feature B — Box Management. A box's status is the single source of
   // truth for every batch inside it.
@@ -109,12 +134,12 @@ interface StoreState {
   // Batches added to the box inherit its (possibly newly set) status;
   // batches removed from it fall back to "Dibeli dari Seller" (no box,
   // no derived status).
-  saveBox: (input: SaveBoxInput) => void
+  saveBox: (input: SaveBoxInput) => Promise<boolean>
   // Deletes one or many boxes — but only the ones with no tax bill still
   // pointing at them (see src/lib/deleteGuards.ts). Every batch inside a
   // box that does get deleted is released back to unboxed ("Dibeli dari
   // Seller").
-  deleteBoxes: (boxIds: string[]) => void
+  deleteBoxes: (boxIds: string[]) => Promise<boolean>
 
   // Feature C
   // Publishing is a one-shot action per box: a box only ever gets
@@ -128,34 +153,34 @@ interface StoreState {
       Omit<TaxBill, 'id' | 'publishedAt' | 'deadline' | 'status' | 'buktiTransfer' | 'lateFeeIDR'>
     >,
     deadline: string,
-  ) => void
-  simulateCustomerUploadTax: (taxBillId: string) => void
-  confirmTaxBill: (taxBillId: string) => void
-  rejectTaxBill: (taxBillId: string) => void
+  ) => Promise<boolean>
+  simulateCustomerUploadTax: (taxBillId: string) => Promise<boolean>
+  confirmTaxBill: (taxBillId: string) => Promise<boolean>
+  rejectTaxBill: (taxBillId: string) => Promise<boolean>
   // Overrides one customer's published tax amount directly — the box's
   // displayed total isn't a stored field anywhere, it's always the live
   // sum of its bills' `total`, so this is the only change needed for the
   // box total to "follow" the edit. Refused once the bill is Lunas —
   // settled payments don't get silently rewritten.
-  updateTaxBillAmount: (taxBillId: string, total: number) => void
+  updateTaxBillAmount: (taxBillId: string, total: number) => Promise<boolean>
   // Free-entry late fee, separate from the product tax — admin decides the
   // amount, nothing is auto-suggested from days overdue. Locked once the
   // bill is Menunggu Konfirmasi or Lunas, same as the reasoning for
   // updateTaxBillAmount, but stricter: a pending confirmation already has
   // a bukti transfer in flight for a specific amount, so the fee can't
   // move under it either.
-  updateTaxBillLateFee: (taxBillId: string, lateFeeIDR: number) => void
+  updateTaxBillLateFee: (taxBillId: string, lateFeeIDR: number) => Promise<boolean>
   // Changes a box's shared payment deadline, applied to every tax bill in
   // it at once — deadline isn't a payment-sensitive field the way total
   // is, so this stays editable regardless of any bill's status.
-  updateBoxDeadline: (boxId: string, deadline: string) => void
+  updateBoxDeadline: (boxId: string, deadline: string) => Promise<boolean>
   // Deletes one or many published tax bills — but only the ones still
   // Belum Bayar (see src/lib/deleteGuards.ts). A Lunas or Menunggu
   // Konfirmasi bill is a real financial record, not undone by a delete.
-  deleteTaxBills: (taxBillIds: string[]) => void
+  deleteTaxBills: (taxBillIds: string[]) => Promise<boolean>
 
   // Feature D
-  updateEstimatorConfig: (patch: Partial<Omit<EstimatorConfig, 'updatedAt'>>) => void
+  updateEstimatorConfig: (patch: Partial<Omit<EstimatorConfig, 'updatedAt'>>) => Promise<boolean>
 }
 
 function attachDemoBukti(): BuktiTransfer {
@@ -226,17 +251,69 @@ function syncBatchBillsForBatch(
   return { batchBills: [...otherBatchBills, ...syncedForBatch, ...orphaned], newlyBilled }
 }
 
+const EMPTY_DATA = {
+  customers: [],
+  batches: [],
+  boxes: [],
+  items: [],
+  batchBills: [],
+  taxBills: [],
+  estimatorConfig: { ...seedEstimatorConfig },
+}
+
+const SEED_DATA = {
+  customers: seedCustomers,
+  batches: seedBatches,
+  boxes: seedBoxes,
+  items: seedItems,
+  batchBills: seedBatchBills,
+  taxBills: seedTaxBills,
+  estimatorConfig: seedEstimatorConfig,
+}
+
 export const useStore = create<StoreState>()(
   persist(
-    (set, get) => ({
-      customers: seedCustomers,
-      batches: seedBatches,
-      boxes: seedBoxes,
-      items: seedItems,
-      batchBills: seedBatchBills,
-      taxBills: seedTaxBills,
-      estimatorConfig: seedEstimatorConfig,
+    (set, get) => {
+      // Runs one Supabase write, then reloads everything so the UI shows
+      // exactly what the database now holds. Any failure becomes an error
+      // toast (with the database's own message) and resolves to false.
+      async function runRemote(op: () => Promise<void>): Promise<boolean> {
+        try {
+          await op()
+          await get().loadRemote()
+          return true
+        } catch (err) {
+          get().pushToast(errorMessage(err), 'error')
+          await get().loadRemote()
+          return false
+        }
+      }
+
+      return {
+      ...(isRemote ? EMPTY_DATA : SEED_DATA),
       toasts: [],
+
+      syncStatus: isRemote ? 'idle' : 'ready',
+      syncError: null,
+
+      loadRemote: async () => {
+        if (!isRemote) return
+        // Only the first load blocks the screen; later refreshes (after
+        // every save) swap data in silently.
+        if (get().syncStatus !== 'ready') set({ syncStatus: 'loading', syncError: null })
+        try {
+          const snapshot = await remote.fetchAll()
+          set({ ...snapshot, syncStatus: 'ready', syncError: null })
+        } catch (err) {
+          if (get().syncStatus === 'ready') {
+            get().pushToast(`Gagal memuat ulang data: ${errorMessage(err)}`, 'error')
+          } else {
+            set({ syncStatus: 'error', syncError: errorMessage(err) })
+          }
+        }
+      },
+
+      clearRemote: () => set({ ...EMPTY_DATA, syncStatus: 'idle', syncError: null }),
 
       getCustomerName: (customerId) =>
         get().customers.find((c) => c.id === customerId)?.name ?? 'Unknown',
@@ -253,7 +330,31 @@ export const useStore = create<StoreState>()(
       dismissToast: (id) =>
         set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 
-      saveBatch: (input) => {
+      saveBatch: async (input) => {
+        if (isRemote) {
+          const isEdit = Boolean(input.batchId)
+          const batchId = input.batchId ?? remote.newId()
+          return runRemote(async () => {
+            const newlyBilled = await remote.saveBatch({
+              batchId,
+              batchNumber: input.batchNumber,
+              orderIdWH: input.orderIdWH,
+              orderType: input.orderType,
+              photoUrls: input.photoDataUrls,
+              previousPhotoUrls: get().batches.find((b) => b.id === batchId)?.photoDataUrls ?? [],
+              items: input.customerOrders.flatMap((order) =>
+                order.items.map((it) => ({ ...it, id: it.id ?? remote.newId(), customerId: order.customerId })),
+              ),
+            })
+            get().pushToast(
+              isEdit
+                ? 'Batch record berhasil diperbarui.'
+                : `Batch record berhasil disimpan. ${newlyBilled} tagihan otomatis diterbitkan.`,
+              'success',
+            )
+          })
+        }
+
         const now = new Date().toISOString()
         const isEdit = Boolean(input.batchId)
         const batchId = input.batchId ?? makeId('batch')
@@ -316,12 +417,18 @@ export const useStore = create<StoreState>()(
             : `Batch record berhasil disimpan. ${newlyBilled} tagihan otomatis diterbitkan.`,
           'success',
         )
+        return true
       },
 
-      deleteBatches: (batchIds) => {
+      deleteBatches: async (batchIds) => {
         let deletedCount = 0
         let blockedCount = 0
-        set((s) => {
+        if (isRemote) {
+          const ok = await runRemote(async () => {
+            ;({ deleted: deletedCount, blocked: blockedCount } = await remote.deleteBatches(batchIds))
+          })
+          if (!ok) return false
+        } else set((s) => {
           const targets = s.batches.filter((b) => batchIds.includes(b.id))
           const { eligible, blocked } = guardBatchDeletion(targets, s.items, s.taxBills, s.batchBills)
           deletedCount = eligible.length
@@ -349,11 +456,26 @@ export const useStore = create<StoreState>()(
             'error',
           )
         }
+        return true
       },
 
-      saveBox: (input) => {
+      saveBox: async (input) => {
         const now = new Date().toISOString()
         const isEdit = Boolean(input.boxId)
+
+        if (isRemote) {
+          const existing = get().boxes.find((b) => b.id === input.boxId)
+          return runRemote(async () => {
+            await remote.saveBox({
+              boxId: input.boxId ?? remote.newId(),
+              boxNumber: input.boxNumber,
+              batchIds: input.batchIds,
+              status: input.status ?? existing?.status ?? DEFAULT_BOX_STATUS,
+            })
+            get().pushToast(isEdit ? 'Box berhasil diperbarui.' : 'Box baru berhasil dibuat.', 'success')
+          })
+        }
+
         const boxId = input.boxId ?? makeId('box')
 
         set((s) => {
@@ -391,13 +513,19 @@ export const useStore = create<StoreState>()(
         })
 
         get().pushToast(isEdit ? 'Box berhasil diperbarui.' : 'Box baru berhasil dibuat.', 'success')
+        return true
       },
 
-      deleteBoxes: (boxIds) => {
+      deleteBoxes: async (boxIds) => {
         const now = new Date().toISOString()
         let deletedCount = 0
         let blockedCount = 0
-        set((s) => {
+        if (isRemote) {
+          const ok = await runRemote(async () => {
+            ;({ deleted: deletedCount, blocked: blockedCount } = await remote.deleteBoxes(boxIds))
+          })
+          if (!ok) return false
+        } else set((s) => {
           const targets = s.boxes.filter((b) => boxIds.includes(b.id))
           const { eligible, blocked } = guardBoxDeletion(targets)
           deletedCount = eligible.length
@@ -422,18 +550,28 @@ export const useStore = create<StoreState>()(
             'error',
           )
         }
+        return true
       },
 
-      setItemWeights: (weights) => {
+      setItemWeights: async (weights) => {
+        if (isRemote) return runRemote(() => remote.setItemWeights(weights))
         const byId = new Map(weights.map((w) => [w.itemId, w.weightGrams]))
         set((s) => ({
           items: s.items.map((it) =>
             byId.has(it.id) ? { ...it, weightGrams: byId.get(it.id) } : it,
           ),
         }))
+        return true
       },
 
-      simulateCustomerUploadBatch: (batchBillId) => {
+      simulateCustomerUploadBatch: async (batchBillId) => {
+        if (isRemote) {
+          const bill = get().batchBills.find((b) => b.id === batchBillId)
+          if (!bill) return false
+          return runRemote(() =>
+            remote.simulateCustomerUpload('batch', batchBillId, bill.customerId, attachDemoBukti()),
+          )
+        }
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
@@ -441,9 +579,16 @@ export const useStore = create<StoreState>()(
               : b,
           ),
         }))
+        return true
       },
 
-      confirmBatchBill: (batchBillId) => {
+      confirmBatchBill: async (batchBillId) => {
+        if (isRemote) {
+          return runRemote(async () => {
+            await remote.confirmBill('batch', batchBillId)
+            get().pushToast('Pembayaran batch dikonfirmasi — status Lunas.', 'success')
+          })
+        }
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
@@ -452,9 +597,16 @@ export const useStore = create<StoreState>()(
           ),
         }))
         get().pushToast('Pembayaran batch dikonfirmasi — status Lunas.', 'success')
+        return true
       },
 
-      rejectBatchBill: (batchBillId) => {
+      rejectBatchBill: async (batchBillId) => {
+        if (isRemote) {
+          return runRemote(async () => {
+            await remote.rejectBill('batch', batchBillId)
+            get().pushToast('Bukti transfer ditolak — customer diminta upload ulang.', 'error')
+          })
+        }
         set((s) => ({
           batchBills: s.batchBills.map((b) =>
             b.id === batchBillId
@@ -463,9 +615,19 @@ export const useStore = create<StoreState>()(
           ),
         }))
         get().pushToast('Bukti transfer ditolak — customer diminta upload ulang.', 'error')
+        return true
       },
 
-      publishTaxBills: (bills, deadline) => {
+      publishTaxBills: async (bills, deadline) => {
+        const boxId = bills[0]?.boxId ?? ''
+        const successMessage = () =>
+          `Tagihan pajak box ${get().getBoxNumber(boxId)} diterbitkan ke ${bills.length} customer. Notifikasi terkirim.`
+        if (isRemote) {
+          return runRemote(async () => {
+            await remote.publishTaxBills(boxId, deadline, bills)
+            get().pushToast(successMessage(), 'success')
+          })
+        }
         const nowIso = new Date().toISOString()
         set((s) => {
           const newBills: TaxBill[] = bills.map((b) => ({
@@ -478,13 +640,18 @@ export const useStore = create<StoreState>()(
           }))
           return { taxBills: [...newBills, ...s.taxBills] }
         })
-        get().pushToast(
-          `Tagihan pajak box ${get().getBoxNumber(bills[0]?.boxId ?? '')} diterbitkan ke ${bills.length} customer. Notifikasi terkirim.`,
-          'success',
-        )
+        get().pushToast(successMessage(), 'success')
+        return true
       },
 
-      simulateCustomerUploadTax: (taxBillId) => {
+      simulateCustomerUploadTax: async (taxBillId) => {
+        if (isRemote) {
+          const bill = get().taxBills.find((t) => t.id === taxBillId)
+          if (!bill) return false
+          return runRemote(() =>
+            remote.simulateCustomerUpload('tax', taxBillId, bill.customerId, attachDemoBukti()),
+          )
+        }
         set((s) => ({
           taxBills: s.taxBills.map((t) =>
             t.id === taxBillId
@@ -492,18 +659,32 @@ export const useStore = create<StoreState>()(
               : t,
           ),
         }))
+        return true
       },
 
-      confirmTaxBill: (taxBillId) => {
+      confirmTaxBill: async (taxBillId) => {
+        if (isRemote) {
+          return runRemote(async () => {
+            await remote.confirmBill('tax', taxBillId)
+            get().pushToast('Pembayaran pajak dikonfirmasi — status Lunas.', 'success')
+          })
+        }
         set((s) => ({
           taxBills: s.taxBills.map((t) =>
             t.id === taxBillId ? { ...t, status: 'Lunas' as TaxBillStatus } : t,
           ),
         }))
         get().pushToast('Pembayaran pajak dikonfirmasi — status Lunas.', 'success')
+        return true
       },
 
-      rejectTaxBill: (taxBillId) => {
+      rejectTaxBill: async (taxBillId) => {
+        if (isRemote) {
+          return runRemote(async () => {
+            await remote.rejectBill('tax', taxBillId)
+            get().pushToast('Bukti transfer pajak ditolak — customer diminta upload ulang.', 'error')
+          })
+        }
         set((s) => ({
           taxBills: s.taxBills.map((t) =>
             t.id === taxBillId
@@ -512,15 +693,21 @@ export const useStore = create<StoreState>()(
           ),
         }))
         get().pushToast('Bukti transfer pajak ditolak — customer diminta upload ulang.', 'error')
+        return true
       },
 
-      updateTaxBillAmount: (taxBillId, total) => {
+      updateTaxBillAmount: async (taxBillId, total) => {
         if (!Number.isFinite(total) || total < 0) {
           get().pushToast('Jumlah tagihan harus berupa angka 0 atau lebih.', 'error')
-          return
+          return false
         }
         let blocked = false
-        set((s) => {
+        if (isRemote) {
+          const ok = await runRemote(async () => {
+            blocked = !(await remote.updateTaxBillAmount(taxBillId, total))
+          })
+          if (!ok) return false
+        } else set((s) => {
           const bill = s.taxBills.find((t) => t.id === taxBillId)
           if (!bill || bill.status === 'Lunas') {
             blocked = true
@@ -535,15 +722,21 @@ export const useStore = create<StoreState>()(
         } else {
           get().pushToast('Jumlah tagihan pajak diperbarui.', 'success')
         }
+        return !blocked
       },
 
-      updateTaxBillLateFee: (taxBillId, lateFeeIDR) => {
+      updateTaxBillLateFee: async (taxBillId, lateFeeIDR) => {
         if (!Number.isFinite(lateFeeIDR) || lateFeeIDR < 0) {
           get().pushToast('Denda telat harus berupa angka 0 atau lebih.', 'error')
-          return
+          return false
         }
         let blocked = false
-        set((s) => {
+        if (isRemote) {
+          const ok = await runRemote(async () => {
+            blocked = !(await remote.updateTaxBillLateFee(taxBillId, lateFeeIDR))
+          })
+          if (!ok) return false
+        } else set((s) => {
           const bill = s.taxBills.find((t) => t.id === taxBillId)
           if (!bill || bill.status !== 'Belum Bayar') {
             blocked = true
@@ -561,26 +754,36 @@ export const useStore = create<StoreState>()(
         } else {
           get().pushToast('Denda telat diperbarui.', 'success')
         }
+        return !blocked
       },
 
-      updateBoxDeadline: (boxId, deadline) => {
+      updateBoxDeadline: async (boxId, deadline) => {
+        const successMessage = () => `Deadline pembayaran box ${get().getBoxNumber(boxId)} diperbarui.`
+        if (isRemote) {
+          return runRemote(async () => {
+            await remote.updateBoxDeadline(boxId, deadline)
+            get().pushToast(successMessage(), 'success')
+          })
+        }
         set((s) => ({
           taxBills: s.taxBills.map((t) => (t.boxId === boxId ? { ...t, deadline } : t)),
         }))
-        get().pushToast(`Deadline pembayaran box ${get().getBoxNumber(boxId)} diperbarui.`, 'success')
+        get().pushToast(successMessage(), 'success')
+        return true
       },
 
-      deleteTaxBills: (taxBillIds) => {
-        let deletedCount = 0
-        let blockedCount = 0
-        set((s) => {
-          const targets = s.taxBills.filter((t) => taxBillIds.includes(t.id))
-          const { eligible, blocked } = guardTaxBillDeletion(targets)
-          deletedCount = eligible.length
-          blockedCount = blocked.length
+      deleteTaxBills: async (taxBillIds) => {
+        const targets = get().taxBills.filter((t) => taxBillIds.includes(t.id))
+        const { eligible, blocked } = guardTaxBillDeletion(targets)
+        const deletedCount = eligible.length
+        const blockedCount = blocked.length
+        if (isRemote) {
+          const ok = await runRemote(() => remote.deleteTaxBills(eligible.map((t) => t.id)))
+          if (!ok) return false
+        } else {
           const idSet = new Set(eligible.map((t) => t.id))
-          return { taxBills: s.taxBills.filter((t) => !idSet.has(t.id)) }
-        })
+          set((s) => ({ taxBills: s.taxBills.filter((t) => !idSet.has(t.id)) }))
+        }
         if (deletedCount > 0) {
           get().pushToast(
             deletedCount > 1 ? `${deletedCount} tagihan pajak dihapus.` : 'Tagihan pajak dihapus.',
@@ -593,17 +796,32 @@ export const useStore = create<StoreState>()(
             'error',
           )
         }
+        return true
       },
 
-      updateEstimatorConfig: (patch) => {
+      updateEstimatorConfig: async (patch) => {
+        const successMessage = 'Konfigurasi Price Estimator disimpan dan langsung berlaku.'
+        if (isRemote) {
+          return runRemote(async () => {
+            await remote.updateEstimatorConfig(patch)
+            get().pushToast(successMessage, 'success')
+          })
+        }
         set((s) => ({
           estimatorConfig: { ...s.estimatorConfig, ...patch, updatedAt: new Date().toISOString() },
         }))
-        get().pushToast('Konfigurasi Price Estimator disimpan dan langsung berlaku.', 'success')
+        get().pushToast(successMessage, 'success')
+        return true
       },
-    }),
+      }
+    },
     {
-      name: 'go-aikatsu-admin-store-v2',
+      // Supabase mode keeps nothing in localStorage: a separate key (so a
+      // demo-mode save is never overwritten or loaded by mistake), no
+      // hydration, and an empty persisted slice.
+      name: isRemote ? 'go-aikatsu-admin-store-remote' : 'go-aikatsu-admin-store-v2',
+      skipHydration: isRemote,
+      partialize: (s) => (isRemote ? {} : s),
       // v1 introduced orderIdWH and switched photoDataUrl (single) to
       // photoDataUrls (array) on Batch. v2 added itemIds to TaxBill. v3
       // introduced the Box entity (Feature B) and dropped "Menunggu

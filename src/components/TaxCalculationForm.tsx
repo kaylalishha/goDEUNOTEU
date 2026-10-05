@@ -23,13 +23,13 @@ export function TaxCalculationForm({
   boxOptions: Array<{ id: string; boxNumber: string }>
   itemsByBox: (boxId: string) => Item[]
   customers: Customer[]
-  onSaveWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => void
+  onSaveWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => Promise<boolean>
   onPublish: (
     bills: Array<
       Omit<TaxBill, 'id' | 'publishedAt' | 'deadline' | 'status' | 'buktiTransfer' | 'lateFeeIDR'>
     >,
     deadline: string,
-  ) => void
+  ) => Promise<boolean>
   onCancel: () => void
 }) {
   const [boxId, setBoxId] = useState('')
@@ -37,6 +37,7 @@ export function TaxCalculationForm({
   const [weights, setWeights] = useState<Record<string, number>>({})
   const [deadlineDate, setDeadlineDate] = useState(suggestedDeadlineDate())
   const [dialog, setDialog] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
   // Publish is one-shot per box (only boxes with zero existing tax bills
   // are ever offered here — see boxOptions in TaxBills.tsx), so every item
@@ -60,7 +61,8 @@ export function TaxCalculationForm({
     [JSON.stringify(calcInputs), totalTax],
   )
 
-  function handlePublish() {
+  async function handlePublish() {
+    if (submitting) return
     const fail = (message: string) => setDialog({ tone: 'error', message })
     if (!boxId) return fail('Pilih box terlebih dahulu.')
     if (!deadlineDate) return fail('Pilih deadline pembayaran.')
@@ -76,14 +78,16 @@ export function TaxCalculationForm({
     // jam 12:00 siang" convention.
     const deadlineIso = new Date(`${deadlineDate}T12:00:00`).toISOString()
 
-    // onSaveWeights/onPublish hand off to the store synchronously — if
-    // either throws for any reason, still surface a dialog rather than
-    // leaving the sheet open with no feedback.
+    // onSaveWeights/onPublish resolve false when the store failed (and
+    // already toasted why) — publish only once the weights are saved. If
+    // either throws for any other reason, still surface a dialog rather
+    // than leaving the sheet open with no feedback.
+    setSubmitting(true)
     try {
-      onSaveWeights(
+      const weightsSaved = await onSaveWeights(
         nonKartuItems.map((i) => ({ itemId: i.id, weightGrams: weights[i.id] ?? i.weightGrams ?? 0 })),
       )
-      onPublish(
+      const published = weightsSaved && await onPublish(
         result.breakdown.map((b) => ({
           boxId,
           customerId: b.customerId,
@@ -96,15 +100,21 @@ export function TaxCalculationForm({
         })),
         deadlineIso,
       )
-      setDialog({
-        tone: 'success',
-        message: `Tagihan pajak untuk ${result.breakdown.length} customer berhasil dipublikasikan.`,
-      })
+      setDialog(
+        published
+          ? {
+              tone: 'success',
+              message: `Tagihan pajak untuk ${result.breakdown.length} customer berhasil dipublikasikan.`,
+            }
+          : { tone: 'error', message: 'Tagihan pajak belum dipublikasikan — lihat pesan error di pojok kanan bawah.' },
+      )
     } catch (err) {
       setDialog({
         tone: 'error',
         message: `Gagal mempublikasikan tagihan pajak: ${err instanceof Error ? err.message : 'terjadi kesalahan tak terduga.'}`,
       })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -219,9 +229,10 @@ export function TaxCalculationForm({
         <button
           type="button"
           onClick={handlePublish}
-          className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+          disabled={submitting}
+          className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300"
         >
-          Publish Tax Bill
+          {submitting ? 'Mempublikasikan…' : 'Publish Tax Bill'}
         </button>
       </div>
 

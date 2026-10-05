@@ -141,11 +141,11 @@ export default function OrderRecap() {
   }, [selectedInView, allInViewSelected])
 
   function handleCreate(input: SaveBatchInput) {
-    saveBatch(input)
+    return saveBatch(input)
   }
 
   function handleEdit(input: SaveBatchInput) {
-    saveBatch(input)
+    return saveBatch(input)
   }
 
   // Shift-click selects the whole visible range in one go — the intended
