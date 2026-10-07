@@ -1,26 +1,22 @@
 import { useState } from 'react'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
-import { AlertDialog } from '../components/AlertDialog'
 import { BoxForm } from '../components/BoxForm'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { EmptyState } from '../components/EmptyState'
 import { PAGE_SIZE, Pagination } from '../components/Pagination'
-import { guardBoxDeletion } from '../lib/deleteGuards'
 import { formatDate } from '../lib/format'
 import type { Box } from '../types'
 
 export default function BoxManagement() {
   const boxes = useStore((s) => s.boxes)
   const batches = useStore((s) => s.batches)
-  const taxBills = useStore((s) => s.taxBills)
   const saveBox = useStore((s) => s.saveBox)
   const deleteBoxes = useStore((s) => s.deleteBoxes)
 
   const [formOpen, setFormOpen] = useState(false)
   const [viewingBox, setViewingBox] = useState<Box | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [deleteBlockedOpen, setDeleteBlockedOpen] = useState(false)
   const [page, setPage] = useState(1)
 
   const sorted = [...boxes].sort((a, b) => b.createdAt.localeCompare(a.createdAt))
@@ -36,14 +32,11 @@ export default function BoxManagement() {
 
   // Delete only ever targets the box currently open in the detail card —
   // there's no bulk/table delete, so a wrong-checkbox mistake isn't possible.
+  // BoxForm already disables the delete button once the box is locked, so
+  // this is only ever reachable while the box is still deletable.
   function handleDeleteClick() {
     if (!viewingBox) return
-    const { eligible } = guardBoxDeletion([viewingBox], taxBills)
-    if (eligible.length === 0) {
-      setDeleteBlockedOpen(true)
-    } else {
-      setDeleteConfirmOpen(true)
-    }
+    setDeleteConfirmOpen(true)
   }
 
   function handleDeleteConfirm() {
@@ -153,15 +146,6 @@ export default function BoxManagement() {
           }
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteConfirmOpen(false)}
-        />
-      )}
-
-      {deleteBlockedOpen && (
-        <AlertDialog
-          tone="error"
-          title="Box Ini Belum Bisa Dihapus"
-          message="Box ini masih punya tagihan pajak yang dipublikasikan — hapus tagihannya dulu di halaman Tax Bills sebelum menghapus box ini."
-          onClose={() => setDeleteBlockedOpen(false)}
         />
       )}
     </div>

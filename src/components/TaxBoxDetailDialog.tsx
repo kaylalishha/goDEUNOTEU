@@ -5,7 +5,6 @@ import { guardTaxBillDeletion } from '../lib/deleteGuards'
 import { formatDate, formatIDR } from '../lib/format'
 import { buildTaxTagihanTemplate } from '../lib/taxTagihanTemplate'
 import { KARTU_FLAT_TAX_IDR } from '../types'
-import { AlertDialog } from './AlertDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { DeadlineBadge } from './DeadlineBadge'
 import { ImageLightbox } from './ImageLightbox'
@@ -42,13 +41,12 @@ export function TaxBoxDetailDialog({
   const [lateFeeDraft, setLateFeeDraft] = useState('')
   const [editingDeadline, setEditingDeadline] = useState(false)
   const [deadlineDraft, setDeadlineDraft] = useState('')
-  // Delete only ever targets one bill at a time, opened from inside its own
-  // row here — there's no bulk/table delete, so no wrong-checkbox risk.
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
-  // Deletes every eligible (Belum Bayar) bill in this box at once — still
-  // scoped to the one box already open, not a table-wide bulk action.
+  // Publishing is one-shot per box, so deleting is too: either every bill
+  // in the box goes (to let Admin fix a miscalculated publish and redo it
+  // cleanly), or none do — never a partial delete. Blocked outright the
+  // moment even one bill in the box is no longer Belum Bayar (button is
+  // disabled in that case, see deleteAllBlocked below).
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
-  const [deleteAllBlockedOpen, setDeleteAllBlockedOpen] = useState(false)
 
   if (taxBills.length === 0) return null
 
@@ -124,30 +122,17 @@ export function TaxBoxDetailDialog({
     setEditingDeadline(false)
   }
 
-  function confirmDeleteBill() {
-    if (!deleteTargetId) return
-    deleteTaxBills([deleteTargetId])
-    setDeleteTargetId(null)
-    // Deleting the last bill in the box leaves nothing left to show here.
-    if (taxBills.length <= 1) onClose()
-  }
+  const deleteAllBlocked = guardTaxBillDeletion(taxBills).blocked.length > 0
 
   function handleDeleteAllClick() {
-    const { eligible } = guardTaxBillDeletion(taxBills)
-    if (eligible.length === 0) {
-      setDeleteAllBlockedOpen(true)
-    } else {
-      setDeleteAllConfirmOpen(true)
-    }
+    if (deleteAllBlocked) return
+    setDeleteAllConfirmOpen(true)
   }
 
   function confirmDeleteAll() {
-    const { eligible } = guardTaxBillDeletion(taxBills)
-    deleteTaxBills(eligible.map((t) => t.id))
+    deleteTaxBills(taxBills.map((t) => t.id))
     setDeleteAllConfirmOpen(false)
-    // Only Lunas/Menunggu Konfirmasi bills survive a "delete all" — if
-    // every bill in the box was eligible, there's nothing left to show.
-    if (eligible.length === taxBills.length) onClose()
+    onClose()
   }
 
   return (
@@ -545,19 +530,6 @@ export function TaxBoxDetailDialog({
                           </table>
                         </div>
                       </div>
-
-                      {t.status === 'Belum Bayar' && (
-                        <div className="mt-3 flex justify-start">
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTargetId(t.id)}
-                            className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
-                          >
-                            <TrashIcon className="h-3.5 w-3.5 text-rose-600" />
-                            Hapus Tagihan
-                          </button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -569,9 +541,15 @@ export function TaxBoxDetailDialog({
             <button
               type="button"
               onClick={handleDeleteAllClick}
-              className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
+              disabled={deleteAllBlocked}
+              title={
+                deleteAllBlocked
+                  ? 'Box ini sudah punya tagihan yang dibayar atau menunggu konfirmasi — begitu ada satu saja, semua tagihan di box ini tidak bisa dihapus lagi.'
+                  : undefined
+              }
+              className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:bg-slate-50"
             >
-              <TrashIcon className="h-4 w-4 text-rose-600" />
+              <TrashIcon className={deleteAllBlocked ? 'h-4 w-4 text-slate-400' : 'h-4 w-4 text-rose-600'} />
               Hapus Semua Tagihan di Box Ini
             </button>
           </div>
@@ -580,41 +558,12 @@ export function TaxBoxDetailDialog({
 
       {lightboxSrc && <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
 
-      {deleteTargetId && (
-        <ConfirmDialog
-          title={`Hapus Tagihan ${getCustomerName(
-            taxBills.find((t) => t.id === deleteTargetId)?.customerId ?? '',
-          )}?`}
-          message="Tindakan ini tidak bisa dibatalkan."
-          onConfirm={confirmDeleteBill}
-          onCancel={() => setDeleteTargetId(null)}
-        />
-      )}
-
       {deleteAllConfirmOpen && (
         <ConfirmDialog
           title={`Hapus Semua Tagihan di ${boxNumber}?`}
-          message={(() => {
-            const { eligible, blocked } = guardTaxBillDeletion(taxBills)
-            return (
-              `${eligible.length} tagihan akan dihapus` +
-              (blocked.length > 0
-                ? `, ${blocked.length} tagihan dilewati karena sudah dibayar/menunggu konfirmasi.`
-                : '.') +
-              ' Tindakan ini tidak bisa dibatalkan.'
-            )
-          })()}
+          message={`Semua ${taxBills.length} tagihan pajak di box ini akan dihapus, supaya bisa dihitung dan dipublikasikan ulang dari awal. Tindakan ini tidak bisa dibatalkan.`}
           onConfirm={confirmDeleteAll}
           onCancel={() => setDeleteAllConfirmOpen(false)}
-        />
-      )}
-
-      {deleteAllBlockedOpen && (
-        <AlertDialog
-          tone="error"
-          title="Tidak Ada yang Bisa Dihapus"
-          message="Semua tagihan pajak di box ini sudah dibayar atau menunggu konfirmasi pembayaran, jadi tidak ada yang bisa dihapus."
-          onClose={() => setDeleteAllBlockedOpen(false)}
         />
       )}
     </div>

@@ -71,7 +71,7 @@ export function BatchForm({
 }: {
   customers: Customer[]
   initial?: { batch: Batch; items: Item[] }
-  onSubmit: (input: SaveBatchInput) => void
+  onSubmit: (input: SaveBatchInput) => Promise<boolean>
   onCancel: () => void
 }) {
   const allBatches = useStore((s) => s.batches)
@@ -95,6 +95,7 @@ export function BatchForm({
   )
   const [dialog, setDialog] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const batchBills = useStore((s) => s.batchBills)
   const taxBills = useStore((s) => s.taxBills)
@@ -171,8 +172,9 @@ export function BatchForm({
 
   const usedCustomerIds = new Set(customerOrders.map((r) => r.customerId).filter(Boolean))
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (submitting) return
     const fail = (message: string) => setDialog({ tone: 'error', message })
     if (batchNumberValue === '' || !Number.isInteger(batchNumberValue) || batchNumberValue <= 0) {
       return fail('Batch Number wajib diisi dengan angka.')
@@ -200,11 +202,13 @@ export function BatchForm({
       return fail('Satu customer hanya boleh muncul sekali per batch — gabungkan itemnya.')
     }
 
-    // onSubmit hands off to the store synchronously — if it throws for any
-    // reason (unexpected data, storage write failure, etc.) we must still
+    // onSubmit resolves once the store has saved (instantly in demo mode,
+    // after the Supabase round-trip otherwise) — false means it failed and
+    // already toasted why. If it throws for any other reason we must still
     // surface a dialog rather than leaving the sheet open with no feedback.
+    setSubmitting(true)
     try {
-      onSubmit({
+      const saved = await onSubmit({
         batchId: initial?.batch.id,
         batchNumber: formatWithPrefix(BATCH_NUMBER_PREFIX, batchNumberValue, 2)!,
         orderIdWH: orderIdWH.trim(),
@@ -222,15 +226,21 @@ export function BatchForm({
         })),
       })
 
-      setDialog({
-        tone: 'success',
-        message: initial ? 'Perubahan batch berhasil disimpan.' : 'Batch record baru berhasil disimpan.',
-      })
+      setDialog(
+        saved
+          ? {
+              tone: 'success',
+              message: initial ? 'Perubahan batch berhasil disimpan.' : 'Batch record baru berhasil disimpan.',
+            }
+          : { tone: 'error', message: 'Batch belum tersimpan — lihat pesan error di pojok kanan bawah.' },
+      )
     } catch (err) {
       setDialog({
         tone: 'error',
         message: `Gagal menyimpan batch: ${err instanceof Error ? err.message : 'terjadi kesalahan tak terduga.'}`,
       })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -518,9 +528,10 @@ export function BatchForm({
           </button>
           <button
             type="submit"
-            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+            disabled={submitting}
+            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {initial ? 'Simpan Perubahan' : 'Simpan Batch'}
+            {submitting ? 'Menyimpan…' : initial ? 'Simpan Perubahan' : 'Simpan Batch'}
           </button>
         </div>
       </div>
