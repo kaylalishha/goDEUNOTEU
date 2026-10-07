@@ -22,6 +22,7 @@ export function BatchDetailDialog({
   const items = allItems.filter((i) => i.batchId === batchId)
   const batchBills = allBatchBills.filter((b) => b.batchId === batchId)
   const getCustomerName = useStore((s) => s.getCustomerName)
+  const getBoxNumber = useStore((s) => s.getBoxNumber)
   const confirmBatchBill = useStore((s) => s.confirmBatchBill)
   const rejectBatchBill = useStore((s) => s.rejectBatchBill)
   const simulateCustomerUploadBatch = useStore((s) => s.simulateCustomerUploadBatch)
@@ -62,13 +63,21 @@ export function BatchDetailDialog({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8">
-      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 px-4 py-8"
+      onClick={(e) => {
+        // Guards against nested overlays (ImageLightbox) rendered inside
+        // this same backdrop — a click bubbling up from one of those
+        // shouldn't also close this dialog.
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="w-full max-w-4xl rounded-xl bg-white shadow-xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-rose-600">
               {batch.batchNumber} <span className="text-slate-400">🗃️</span>{' '}
-              {batch.boxNumber ? `(${batch.boxNumber})` : (
+              {batch.boxId ? `(${getBoxNumber(batch.boxId)})` : (
                 <span className="text-sm font-normal text-slate-400">(Box belum ditentukan)</span>
               )}{' '}
               <span className="text-sm font-normal text-slate-400">· {formatDate(batch.createdAt)}</span>
@@ -145,6 +154,7 @@ export function BatchDetailDialog({
             ) : (
               customerIds.map((customerId) => {
                 const customerItems = items.filter((i) => i.customerId === customerId)
+                const customerTotal = customerItems.reduce((sum, i) => sum + i.priceIDR, 0)
                 const bill = batchBills.find((b) => b.customerId === customerId)
                 const isOpen = expanded.has(customerId)
                 return (
@@ -155,7 +165,11 @@ export function BatchDetailDialog({
                       className="flex w-full items-center justify-between gap-3 bg-white px-4 py-3 text-left hover:bg-slate-50"
                     >
                       <span className="font-semibold text-rose-600">{getCustomerName(customerId)}</span>
-                      <span className="flex items-center gap-2">
+                      <span className="flex items-center gap-3">
+                        <span className="text-right text-xs text-slate-500">
+                          <span className="block">{customerItems.length} item</span>
+                          <span className="font-semibold text-slate-800">{formatIDR(customerTotal)}</span>
+                        </span>
                         <StatusBadge status={bill?.status ?? 'Belum Bayar'} />
                         <span className="text-slate-400">{isOpen ? '︿' : '﹀'}</span>
                       </span>

@@ -101,7 +101,7 @@ export interface BuktiTransfer {
 export interface Batch {
   id: string
   batchNumber: string
-  boxNumber?: string
+  boxId?: string
   orderIdWH: string
   orderType: OrderType
   photoDataUrls: string[]
@@ -139,7 +139,7 @@ export interface BatchBill {
 
 export interface TaxBill {
   id: string
-  boxNumber: string
+  boxId: string
   customerId: string
   itemIds: string[]
   kartuCount: number
@@ -147,6 +147,11 @@ export interface TaxBill {
   nonKartuWeightGrams: number
   nonKartuShare: number
   total: number
+  // Optional, admin-entered flat amount for late payment — separate from
+  // the product tax (`total`), never auto-suggested from days overdue.
+  // The bill's grand total (what the customer actually owes) is
+  // `total + lateFeeIDR`.
+  lateFeeIDR: number
   publishedAt: string
   deadline: string
   status: TaxBillStatus
