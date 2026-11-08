@@ -1,0 +1,592 @@
+// Copied from the admin app's src/store/seed.ts so both dashboards use the same
+// model, formulas and demo data. Keep the two copies in sync.
+import type { Batch, BatchBill, Box, Customer, EstimatorConfig, Item, TaxBill } from './types'
+
+const PLACEHOLDER_RECEIPT =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="320" height="420">
+      <rect width="320" height="420" fill="#f8fafc"/>
+      <rect x="16" y="16" width="288" height="388" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+      <text x="160" y="60" font-family="monospace" font-size="16" text-anchor="middle" fill="#0f172a">BUKTI TRANSFER</text>
+      <line x1="32" y1="80" x2="288" y2="80" stroke="#e2e8f0" stroke-width="2"/>
+      <text x="32" y="120" font-family="monospace" font-size="12" fill="#334155">Bank BCA</text>
+      <text x="32" y="150" font-family="monospace" font-size="12" fill="#334155">Transfer Berhasil</text>
+      <text x="32" y="180" font-family="monospace" font-size="12" fill="#334155">Ref: TRX-DEMO-0001</text>
+      <rect x="32" y="220" width="256" height="140" fill="#f1f5f9"/>
+      <text x="160" y="295" font-family="monospace" font-size="11" text-anchor="middle" fill="#94a3b8">demo attachment</text>
+    </svg>
+  `)
+
+const PLACEHOLDER_PRODUCT_PHOTO =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="480" height="480">
+      <rect width="480" height="480" fill="#fff1f2"/>
+      <rect x="24" y="24" width="432" height="432" fill="#ffffff" stroke="#fecdd3" stroke-width="3" stroke-dasharray="10 8"/>
+      <text x="240" y="230" font-family="sans-serif" font-size="20" text-anchor="middle" fill="#9f1239">foto product</text>
+      <text x="240" y="258" font-family="sans-serif" font-size="13" text-anchor="middle" fill="#fb7185">(yg biasa ada di notes line)</text>
+    </svg>
+  `)
+
+function daysAgoIso(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() - days)
+  return d.toISOString()
+}
+
+function hoursAgoIso(hours: number): string {
+  const d = new Date()
+  d.setHours(d.getHours() - hours)
+  return d.toISOString()
+}
+
+export const seedCustomers: Customer[] = [
+  { id: 'cust_aiko', name: 'Aiko Pratiwi' },
+  { id: 'cust_bunga', name: 'Bunga Lestari' },
+  { id: 'cust_citra', name: 'Citra Wulandari' },
+  { id: 'cust_dewi', name: 'Dewi Anggraini' },
+  { id: 'cust_eka', name: 'Eka Putri' },
+  { id: 'cust_fitri', name: 'Fitri Handayani' },
+  { id: 'cust_gita', name: 'Gita Ramadhani' },
+  { id: 'cust_hana', name: 'Hana Safitri' },
+  { id: 'cust_intan', name: 'Intan Permata' },
+  { id: 'cust_jihan', name: 'Jihan Salsabila' },
+  { id: 'cust_kirana', name: 'Kirana Putri' },
+  { id: 'cust_larasati', name: 'Larasati Wibowo' },
+  { id: 'cust_maya', name: 'Maya Kusuma' },
+  { id: 'cust_nadia', name: 'Nadia Rahmawati' },
+  { id: 'cust_olivia', name: 'Olivia Setiawan' },
+]
+
+export const seedBatches: Batch[] = [
+  {
+    id: 'batch_01',
+    batchNumber: 'BATCH-01',
+    boxId: 'box_001',
+    orderIdWH: 'WH-2026-0001',
+    orderType: 'ReqShare',
+    photoDataUrls: [PLACEHOLDER_PRODUCT_PHOTO, PLACEHOLDER_PRODUCT_PHOTO],
+    orderStatus: 'Di WH Indonesia',
+    createdAt: daysAgoIso(12),
+    updatedAt: daysAgoIso(9),
+  },
+  {
+    id: 'batch_02',
+    batchNumber: 'BATCH-02',
+    boxId: 'box_002',
+    orderIdWH: 'WH-2026-0002',
+    orderType: 'ReqShare',
+    photoDataUrls: [PLACEHOLDER_PRODUCT_PHOTO],
+    orderStatus: 'Di Bea Cukai',
+    createdAt: daysAgoIso(4),
+    updatedAt: daysAgoIso(4),
+  },
+  {
+    id: 'batch_03',
+    batchNumber: 'BATCH-03',
+    // demonstrates a batch recorded before its box is known — a batch
+    // stays at "Dibeli dari Seller" until Box Management (Feature B)
+    // places it into a box, which is what actually advances its status
+    orderIdWH: 'WH-2026-0003',
+    orderType: 'Persod',
+    photoDataUrls: [],
+    orderStatus: 'Dibeli dari Seller',
+    createdAt: daysAgoIso(1),
+    updatedAt: daysAgoIso(1),
+  },
+  {
+    id: 'batch_04',
+    batchNumber: 'BATCH-04',
+    boxId: 'box_002',
+    orderIdWH: 'WH-2026-0004',
+    orderType: 'ReqShare',
+    photoDataUrls: [],
+    orderStatus: 'Di Bea Cukai',
+    createdAt: hoursAgoIso(7),
+    updatedAt: hoursAgoIso(7),
+  },
+  {
+    id: 'batch_05',
+    batchNumber: 'BATCH-05',
+    // still no box — most batches sit here until a run is reconciled and
+    // grouped into a box together via the Box Management page
+    orderIdWH: 'WH-2026-0005',
+    orderType: 'Admin',
+    photoDataUrls: [],
+    orderStatus: 'Dibeli dari Seller',
+    createdAt: hoursAgoIso(6),
+    updatedAt: hoursAgoIso(6),
+  },
+  {
+    id: 'batch_06',
+    batchNumber: 'BATCH-06',
+    orderIdWH: 'WH-2026-0006',
+    orderType: 'ReqShare',
+    photoDataUrls: [],
+    orderStatus: 'Dibeli dari Seller',
+    createdAt: hoursAgoIso(5),
+    updatedAt: hoursAgoIso(5),
+  },
+  {
+    id: 'batch_07',
+    batchNumber: 'BATCH-07',
+    orderIdWH: 'WH-2026-0007',
+    orderType: 'Persod',
+    photoDataUrls: [],
+    orderStatus: 'Dibeli dari Seller',
+    createdAt: hoursAgoIso(4),
+    updatedAt: hoursAgoIso(4),
+  },
+  {
+    id: 'batch_08',
+    batchNumber: 'BATCH-08',
+    orderIdWH: 'WH-2026-0008',
+    orderType: 'ReqShare',
+    photoDataUrls: [],
+    orderStatus: 'Dibeli dari Seller',
+    createdAt: hoursAgoIso(3),
+    updatedAt: hoursAgoIso(3),
+  },
+  {
+    id: 'batch_09',
+    batchNumber: 'BATCH-09',
+    orderIdWH: 'WH-2026-0009',
+    orderType: 'Admin',
+    photoDataUrls: [],
+    orderStatus: 'Dibeli dari Seller',
+    createdAt: hoursAgoIso(2),
+    updatedAt: hoursAgoIso(2),
+  },
+  {
+    id: 'batch_10',
+    batchNumber: 'BATCH-10',
+    orderIdWH: 'WH-2026-0010',
+    orderType: 'ReqShare',
+    photoDataUrls: [],
+    orderStatus: 'Dibeli dari Seller',
+    createdAt: hoursAgoIso(1),
+    updatedAt: hoursAgoIso(1),
+  },
+]
+
+export const seedBoxes: Box[] = [
+  {
+    id: 'box_001',
+    boxNumber: 'BOX-001',
+    batchIds: ['batch_01'],
+    status: 'Di WH Indonesia',
+    createdAt: daysAgoIso(10),
+    updatedAt: daysAgoIso(9),
+  },
+  {
+    id: 'box_002',
+    boxNumber: 'BOX-002',
+    batchIds: ['batch_02', 'batch_04'],
+    status: 'Di Bea Cukai',
+    createdAt: daysAgoIso(4),
+    updatedAt: hoursAgoIso(7),
+  },
+]
+
+export const seedItems: Item[] = [
+  {
+    id: 'item_001',
+    batchId: 'batch_01',
+    customerId: 'cust_aiko',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Tops',
+    priceIDR: 96000,
+    createdAt: daysAgoIso(12),
+    updatedAt: daysAgoIso(10),
+  },
+  {
+    id: 'item_002',
+    batchId: 'batch_01',
+    customerId: 'cust_aiko',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Set',
+    priceIDR: 180000,
+    createdAt: daysAgoIso(12),
+    updatedAt: daysAgoIso(12),
+  },
+  {
+    id: 'item_003',
+    batchId: 'batch_01',
+    customerId: 'cust_bunga',
+    tipeBarang: 'Boneka',
+    priceIDR: 384000,
+    weightGrams: 420,
+    createdAt: daysAgoIso(12),
+    updatedAt: daysAgoIso(9),
+  },
+  {
+    id: 'item_004',
+    batchId: 'batch_01',
+    customerId: 'cust_citra',
+    tipeBarang: 'Binder',
+    priceIDR: 252000,
+    weightGrams: 310,
+    createdAt: daysAgoIso(11),
+    updatedAt: daysAgoIso(11),
+  },
+  {
+    id: 'item_005',
+    batchId: 'batch_01',
+    customerId: 'cust_citra',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Dress',
+    priceIDR: 108000,
+    createdAt: daysAgoIso(11),
+    updatedAt: daysAgoIso(11),
+  },
+  {
+    id: 'item_006',
+    batchId: 'batch_02',
+    customerId: 'cust_dewi',
+    tipeBarang: 'Standee',
+    priceIDR: 312000,
+    weightGrams: 560,
+    createdAt: daysAgoIso(4),
+    updatedAt: daysAgoIso(4),
+  },
+  {
+    id: 'item_007',
+    batchId: 'batch_02',
+    customerId: 'cust_eka',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Shoes',
+    priceIDR: 84000,
+    createdAt: daysAgoIso(4),
+    updatedAt: daysAgoIso(4),
+  },
+  {
+    id: 'item_008',
+    batchId: 'batch_03',
+    customerId: 'cust_bunga',
+    tipeBarang: 'Ganci',
+    priceIDR: 60000,
+    weightGrams: 55,
+    createdAt: daysAgoIso(1),
+    updatedAt: daysAgoIso(1),
+  },
+  {
+    id: 'item_009',
+    batchId: 'batch_04',
+    customerId: 'cust_dewi',
+    tipeBarang: 'Ganci',
+    priceIDR: 45000,
+    weightGrams: 50,
+    createdAt: hoursAgoIso(7),
+    updatedAt: hoursAgoIso(7),
+  },
+  {
+    id: 'item_010',
+    batchId: 'batch_05',
+    customerId: 'cust_eka',
+    tipeBarang: 'Sleeve',
+    priceIDR: 72000,
+    weightGrams: 90,
+    createdAt: hoursAgoIso(6),
+    updatedAt: hoursAgoIso(6),
+  },
+  {
+    id: 'item_011',
+    batchId: 'batch_06',
+    customerId: 'cust_aiko',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Tops',
+    priceIDR: 96000,
+    createdAt: hoursAgoIso(5),
+    updatedAt: hoursAgoIso(5),
+  },
+  {
+    id: 'item_012',
+    batchId: 'batch_07',
+    customerId: 'cust_bunga',
+    tipeBarang: 'Binder',
+    priceIDR: 210000,
+    weightGrams: 280,
+    createdAt: hoursAgoIso(4),
+    updatedAt: hoursAgoIso(4),
+  },
+  {
+    id: 'item_013',
+    batchId: 'batch_08',
+    customerId: 'cust_citra',
+    tipeBarang: 'Boneka',
+    priceIDR: 330000,
+    weightGrams: 400,
+    createdAt: hoursAgoIso(3),
+    updatedAt: hoursAgoIso(3),
+  },
+  {
+    id: 'item_014',
+    batchId: 'batch_09',
+    customerId: 'cust_dewi',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Shoes',
+    priceIDR: 88000,
+    createdAt: hoursAgoIso(2),
+    updatedAt: hoursAgoIso(2),
+  },
+  {
+    id: 'item_015',
+    batchId: 'batch_10',
+    customerId: 'cust_eka',
+    tipeBarang: 'Standee',
+    priceIDR: 275000,
+    weightGrams: 500,
+    createdAt: hoursAgoIso(1),
+    updatedAt: hoursAgoIso(1),
+  },
+]
+
+export const seedBatchBills: BatchBill[] = [
+  {
+    id: 'bbill_001',
+    batchId: 'batch_01',
+    batchNumber: 'BATCH-01',
+    customerId: 'cust_aiko',
+    itemIds: ['item_001', 'item_002'],
+    upnotesTotal: 5000,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 96000 + 180000 + 5000,
+    status: 'Lunas',
+    createdAt: daysAgoIso(10),
+    paidAt: daysAgoIso(9),
+    buktiTransfer: {
+      fileName: 'bukti_aiko_batch01.png',
+      dataUrl: PLACEHOLDER_RECEIPT,
+      uploadedAt: daysAgoIso(9),
+      paymentMethod: 'BCA',
+    },
+  },
+  {
+    id: 'bbill_002',
+    batchId: 'batch_01',
+    batchNumber: 'BATCH-01',
+    customerId: 'cust_bunga',
+    itemIds: ['item_003'],
+    upnotesTotal: 10000,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 384000 + 10000,
+    status: 'Menunggu Konfirmasi',
+    createdAt: daysAgoIso(9),
+    buktiTransfer: {
+      fileName: 'bukti_bunga_batch01.png',
+      dataUrl: PLACEHOLDER_RECEIPT,
+      uploadedAt: daysAgoIso(1),
+      paymentMethod: 'QRIS',
+    },
+  },
+  {
+    id: 'bbill_003',
+    batchId: 'batch_01',
+    batchNumber: 'BATCH-01',
+    customerId: 'cust_citra',
+    itemIds: ['item_004', 'item_005'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 252000 + 108000,
+    status: 'Belum Bayar',
+    createdAt: daysAgoIso(9),
+  },
+  {
+    id: 'bbill_004',
+    batchId: 'batch_02',
+    batchNumber: 'BATCH-02',
+    customerId: 'cust_dewi',
+    itemIds: ['item_006'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 312000,
+    status: 'Belum Bayar',
+    createdAt: daysAgoIso(4),
+  },
+  {
+    id: 'bbill_005',
+    batchId: 'batch_02',
+    batchNumber: 'BATCH-02',
+    customerId: 'cust_eka',
+    itemIds: ['item_007'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 84000,
+    status: 'Belum Bayar',
+    createdAt: daysAgoIso(4),
+  },
+  {
+    id: 'bbill_006',
+    batchId: 'batch_03',
+    batchNumber: 'BATCH-03',
+    customerId: 'cust_bunga',
+    itemIds: ['item_008'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 60000,
+    status: 'Belum Bayar',
+    createdAt: daysAgoIso(1),
+  },
+  {
+    id: 'bbill_007',
+    batchId: 'batch_04',
+    batchNumber: 'BATCH-04',
+    customerId: 'cust_dewi',
+    itemIds: ['item_009'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 45000,
+    status: 'Lunas',
+    createdAt: hoursAgoIso(7),
+    paidAt: hoursAgoIso(2),
+    buktiTransfer: {
+      fileName: 'bukti_dewi_batch04.png',
+      dataUrl: PLACEHOLDER_RECEIPT,
+      uploadedAt: hoursAgoIso(2),
+      paymentMethod: 'GoPay',
+    },
+  },
+  {
+    id: 'bbill_008',
+    batchId: 'batch_05',
+    batchNumber: 'BATCH-05',
+    customerId: 'cust_eka',
+    itemIds: ['item_010'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 72000,
+    status: 'Menunggu Konfirmasi',
+    createdAt: hoursAgoIso(6),
+    buktiTransfer: {
+      fileName: 'bukti_eka_batch05.png',
+      dataUrl: PLACEHOLDER_RECEIPT,
+      uploadedAt: hoursAgoIso(1),
+      paymentMethod: 'SeaBank',
+    },
+  },
+  {
+    id: 'bbill_009',
+    batchId: 'batch_06',
+    batchNumber: 'BATCH-06',
+    customerId: 'cust_aiko',
+    itemIds: ['item_011'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 96000,
+    status: 'Belum Bayar',
+    createdAt: hoursAgoIso(5),
+  },
+  {
+    id: 'bbill_010',
+    batchId: 'batch_07',
+    batchNumber: 'BATCH-07',
+    customerId: 'cust_bunga',
+    itemIds: ['item_012'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 210000,
+    status: 'Belum Bayar',
+    createdAt: hoursAgoIso(4),
+  },
+  {
+    id: 'bbill_011',
+    batchId: 'batch_08',
+    batchNumber: 'BATCH-08',
+    customerId: 'cust_citra',
+    itemIds: ['item_013'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 330000,
+    status: 'Belum Bayar',
+    createdAt: hoursAgoIso(3),
+  },
+  {
+    id: 'bbill_012',
+    batchId: 'batch_09',
+    batchNumber: 'BATCH-09',
+    customerId: 'cust_dewi',
+    itemIds: ['item_014'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 88000,
+    status: 'Belum Bayar',
+    createdAt: hoursAgoIso(2),
+  },
+  {
+    id: 'bbill_013',
+    batchId: 'batch_10',
+    batchNumber: 'BATCH-10',
+    customerId: 'cust_eka',
+    itemIds: ['item_015'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 275000,
+    status: 'Belum Bayar',
+    createdAt: hoursAgoIso(1),
+  },
+]
+
+export const seedTaxBills: TaxBill[] = [
+  {
+    id: 'tbill_001',
+    boxId: 'box_001',
+    customerId: 'cust_aiko',
+    itemIds: ['item_001', 'item_002'],
+    kartuCount: 2,
+    kartuTax: 10000,
+    nonKartuWeightGrams: 0,
+    nonKartuShare: 0,
+    total: 10000,
+    lateFeeIDR: 5000,
+    publishedAt: daysAgoIso(6),
+    // Every batch under one box shares the same payment deadline.
+    deadline: daysAgoIso(2),
+    status: 'Belum Bayar',
+  },
+  {
+    id: 'tbill_002',
+    boxId: 'box_001',
+    customerId: 'cust_bunga',
+    itemIds: ['item_003'],
+    kartuCount: 0,
+    kartuTax: 0,
+    nonKartuWeightGrams: 420,
+    nonKartuShare: 57534,
+    total: 57534,
+    lateFeeIDR: 0,
+    publishedAt: daysAgoIso(9),
+    deadline: daysAgoIso(2),
+    status: 'Belum Bayar',
+  },
+  {
+    id: 'tbill_003',
+    boxId: 'box_001',
+    customerId: 'cust_citra',
+    itemIds: ['item_004', 'item_005'],
+    kartuCount: 1,
+    kartuTax: 5000,
+    nonKartuWeightGrams: 310,
+    nonKartuShare: 42465,
+    total: 47465,
+    lateFeeIDR: 0,
+    publishedAt: daysAgoIso(9),
+    deadline: daysAgoIso(2),
+    status: 'Lunas',
+    buktiTransfer: {
+      fileName: 'bukti_citra_pajak_box001.png',
+      dataUrl: PLACEHOLDER_RECEIPT,
+      uploadedAt: daysAgoIso(3),
+      paymentMethod: 'DANA',
+    },
+  },
+]
+
+export const seedEstimatorConfig: EstimatorConfig = {
+  exchangeRate: 105,
+  serviceFeeType: 'percentage',
+  serviceFeeValue: 10,
+  updatedAt: daysAgoIso(20),
+}
+
+export const DEMO_RECEIPT_DATA_URL = PLACEHOLDER_RECEIPT

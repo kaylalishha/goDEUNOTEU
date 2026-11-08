@@ -1,8 +1,8 @@
 # GO DEUNOTEU — Customer Dashboard
 
-Customer-facing site, kept separate from the admin dashboard (repo root).
-It shares the backend contract in `../supabase/` but has its own
-`package.json`, build and deploy.
+Customer-facing dashboard, kept separate from the admin dashboard (repo
+root). Requirements: the "customer" tab of the PRD (FR-GO-L, FR-GO-PAY,
+FR-GO-1/2/3). Styling follows the admin dashboard (Tailwind, slate + rose).
 
 ## Run
 
@@ -12,23 +12,52 @@ npm install
 npm run dev
 ```
 
-## Routes
+Open http://localhost:5173/id.
 
-| Path | What |
+## Pages
+
+| Path | Requirement |
 | --- | --- |
-| `/id` | Landing page (Home tab) |
-| `/id?tab=order` | Order menu: Bayar Batch, Kalkulator Harga |
-| `/id?tab=tagihan` | Tagihan menu + "Posisi barang kamu" tracker |
-| `/id?tab=profile` | LINE login card (not wired yet) |
-| `/id/order`, `/id/calculator`, `/id/ems-tax` | Placeholders until those pages are built |
+| `/id` | Landing page (FR-GO-L-001, L-002) |
+| `/id?tab=order` | Order menu: Bayar Batch, Kalkulator Harga (L-003) |
+| `/id?tab=tagihan` | Tagihan menu + "Posisi barang kamu" tracker (L-003, L-004) |
+| `/id?tab=profile` | Login, profile, notifications (PAY-001, L-005) |
+| `/id/order` | Bayar Batch (FR-GO-1-001 … 007) |
+| `/id/ems-tax` | Tagihan EMS & Pajak (FR-GO-2-001 … 007) |
+| `/id/calculator` | Kalkulator Harga (FR-GO-3-001 … 005) |
 
-## Filling in content
+## Demo mode
 
-All copy, numbers, links and media slots are in `src/content.ts`; anything
-marked `TODO` or in `[brackets]` is a placeholder. Every photo renders as a
-labelled placeholder box until you set its `*Src` field.
+LINE Login isn't set up yet, so the app runs on demo data: the same seed
+data as the admin dashboard's demo mode (`src/shared/seed.ts`), saved in
+this browser's localStorage.
+
+- **Masuk** opens the LINE-only login (disabled for now) plus a
+  "Masuk sebagai customer demo" picker.
+- Submitting a proof follows the same rules as the backend's
+  `submit_payment_proof`: own bill only, only while Belum Bayar.
+- A pending bill shows "Simulasi admin (demo)" Konfirmasi / Tolak buttons,
+  standing in for the admin's review.
+- Profil → "Reset data demo" restores the seed data.
+
+`src/shared/` holds copies of the admin's `types.ts`, `calc.ts`,
+`format.ts` and `seed.ts`; keep them in sync with the admin app.
+Moving to the real Supabase backend means replacing `src/store.ts`; the
+pages only use its actions and selectors.
+
+## Open decisions (`src/config.ts`)
+
+- Payment instructions per method (account numbers, QRIS image).
+- Tax payment methods (currently QRIS only, as in the admin's tax template).
+- Proof upload size limit (5 MB placeholder).
+- Whether tax can only be paid after the box's batch bills are Lunas
+  (`TAX_REQUIRES_PAID_BATCH`, off).
+
+Landing-page copy, numbers, links and photos are placeholders in
+`src/content.ts`.
 
 ## Deploy (Vercel)
 
-Create a separate Vercel project with **Root Directory = `customer`**.
-`vercel.json` rewrites all paths to `index.html` for client-side routing.
+New Vercel project from this repo: **Root Directory = `customer`**,
+framework Vite, production branch `customer-dashboard`. `vercel.json`
+rewrites every path to `index.html` for client-side routing.
