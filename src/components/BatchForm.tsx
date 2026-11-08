@@ -13,7 +13,9 @@ import {
 import { MultiImageInput } from './MultiImageInput'
 import { AlertDialog } from './AlertDialog'
 import { ConfirmDialog } from './ConfirmDialog'
+import { CustomerCombobox } from './CustomerCombobox'
 import { makeId } from '../lib/id'
+import { guardBatchDeletion } from '../lib/deleteGuards'
 import { formatIDR } from '../lib/format'
 import { BATCH_NUMBER_PREFIX, extractNumber, formatWithPrefix } from '../lib/numberedId'
 import { useStore, type SaveBatchInput } from '../store/useStore'
@@ -69,7 +71,7 @@ export function BatchForm({
 }: {
   customers: Customer[]
   initial?: { batch: Batch; items: Item[] }
-  onSubmit: (input: SaveBatchInput) => void
+  onSubmit: (input: SaveBatchInput) => Promise<boolean>
   onCancel: () => void
 }) {
   const allBatches = useStore((s) => s.batches)
@@ -93,23 +95,30 @@ export function BatchForm({
   )
   const [dialog, setDialog] = useState<{ tone: 'success' | 'error'; message: string } | null>(null)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const batchBills = useStore((s) => s.batchBills)
+  const taxBills = useStore((s) => s.taxBills)
   const deleteBatches = useStore((s) => s.deleteBatches)
-  const paidCustomerIds = new Set(
+  // A customer's items lock once their bill is Lunas or Menunggu
+  // Konfirmasi — money's either settled or already in flight, so editing
+  // items out from under it would silently change what they owe.
+  const protectedCustomerBillStatus = new Map(
     initial
       ? batchBills
-          .filter((b) => b.batchId === initial.batch.id && b.status === 'Lunas')
-          .map((b) => b.customerId)
+          .filter(
+            (b) =>
+              b.batchId === initial.batch.id &&
+              (b.status === 'Lunas' || b.status === 'Menunggu Konfirmasi'),
+          )
+          .map((b) => [b.customerId, b.status] as const)
       : [],
   )
-  const batchHasPaidOrPendingBill = initial
-    ? batchBills.some(
-        (b) =>
-          b.batchId === initial.batch.id &&
-          (b.status === 'Lunas' || b.status === 'Menunggu Konfirmasi'),
-      )
-    : false
+  const deleteGuard = initial
+    ? guardBatchDeletion([initial.batch], initial.items, taxBills, batchBills)
+    : null
+  const isDeleteBlocked = Boolean(deleteGuard && deleteGuard.blocked.length > 0)
+  const deleteBlockReason = deleteGuard?.blocked[0]?.reason
 
   function handleDeleteConfirm() {
     if (!initial) return
@@ -163,8 +172,9 @@ export function BatchForm({
 
   const usedCustomerIds = new Set(customerOrders.map((r) => r.customerId).filter(Boolean))
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (submitting) return
     const fail = (message: string) => setDialog({ tone: 'error', message })
     if (batchNumberValue === '' || !Number.isInteger(batchNumberValue) || batchNumberValue <= 0) {
       return fail('Batch Number wajib diisi dengan angka.')
@@ -192,11 +202,13 @@ export function BatchForm({
       return fail('Satu customer hanya boleh muncul sekali per batch — gabungkan itemnya.')
     }
 
-    // onSubmit hands off to the store synchronously — if it throws for any
-    // reason (unexpected data, storage write failure, etc.) we must still
+    // onSubmit resolves once the store has saved (instantly in demo mode,
+    // after the Supabase round-trip otherwise) — false means it failed and
+    // already toasted why. If it throws for any other reason we must still
     // surface a dialog rather than leaving the sheet open with no feedback.
+    setSubmitting(true)
     try {
-      onSubmit({
+      const saved = await onSubmit({
         batchId: initial?.batch.id,
         batchNumber: formatWithPrefix(BATCH_NUMBER_PREFIX, batchNumberValue, 2)!,
         orderIdWH: orderIdWH.trim(),
@@ -214,15 +226,21 @@ export function BatchForm({
         })),
       })
 
-      setDialog({
-        tone: 'success',
-        message: initial ? 'Perubahan batch berhasil disimpan.' : 'Batch record baru berhasil disimpan.',
-      })
+      setDialog(
+        saved
+          ? {
+              tone: 'success',
+              message: initial ? 'Perubahan batch berhasil disimpan.' : 'Batch record baru berhasil disimpan.',
+            }
+          : { tone: 'error', message: 'Batch belum tersimpan — lihat pesan error di pojok kanan bawah.' },
+      )
     } catch (err) {
       setDialog({
         tone: 'error',
         message: `Gagal menyimpan batch: ${err instanceof Error ? err.message : 'terjadi kesalahan tak terduga.'}`,
       })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -267,7 +285,7 @@ export function BatchForm({
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400"
               value={orderIdWH}
               onChange={(e) => setOrderIdWH(e.target.value)}
-              placeholder="e.g. WH-2026-0001"
+              placeholder="e.g. m12345678910"
             />
           </div>
           <div>
@@ -313,7 +331,8 @@ export function BatchForm({
 
         <div className="flex flex-col gap-4">
           {customerOrders.map((order) => {
-            const isLocked = paidCustomerIds.has(order.customerId)
+            const lockedStatus = protectedCustomerBillStatus.get(order.customerId)
+            const isLocked = Boolean(lockedStatus)
             return (
             <div
               key={order.localId}
@@ -324,30 +343,20 @@ export function BatchForm({
                   <label className="mb-1 block text-xs text-slate-500">
                     Customer <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-rose-400 focus:outline-none focus:ring-1 focus:ring-rose-400 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  <CustomerCombobox
+                    customers={customers}
                     value={order.customerId}
-                    onChange={(e) => updateOrder(order.localId, { customerId: e.target.value })}
+                    onChange={(customerId) => updateOrder(order.localId, { customerId })}
                     disabled={isLocked}
-                  >
-                    <option value="">Pilih customer…</option>
-                    {customers.map((c) => (
-                      <option
-                        key={c.id}
-                        value={c.id}
-                        disabled={usedCustomerIds.has(c.id) && c.id !== order.customerId}
-                      >
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    disabledIds={usedCustomerIds}
+                  />
                 </div>
                 {isLocked && (
                   <span
                     className="flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                    title="Pembayaran customer ini sudah dikonfirmasi (Lunas) — item terkunci agar tidak berubah diam-diam."
+                    title="Pembayaran customer ini sudah lunas atau sedang menunggu konfirmasi — item terkunci agar tidak berubah diam-diam."
                   >
-                    🔒 Lunas — terkunci
+                    {lockedStatus} — terkunci
                   </span>
                 )}
                 {!isLocked && customerOrders.length > 1 && (
@@ -493,13 +502,19 @@ export function BatchForm({
 
       <div className="mt-1 flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
         {initial ? (
-          <button
-            type="button"
-            onClick={() => setDeleteConfirmOpen(true)}
-            className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50"
-          >
-            Hapus Batch
-          </button>
+          <div className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmOpen(true)}
+              disabled={isDeleteBlocked}
+              className="rounded-md border border-rose-300 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Hapus Batch
+            </button>
+            {isDeleteBlocked && (
+              <span className="text-xs text-slate-400">Tidak bisa dihapus — {deleteBlockReason}.</span>
+            )}
+          </div>
         ) : (
           <span />
         )}
@@ -513,9 +528,10 @@ export function BatchForm({
           </button>
           <button
             type="submit"
-            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700"
+            disabled={submitting}
+            className="rounded-md bg-rose-600 px-4 py-2 text-sm font-medium text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
-            {initial ? 'Simpan Perubahan' : 'Simpan Batch'}
+            {submitting ? 'Menyimpan…' : initial ? 'Simpan Perubahan' : 'Simpan Batch'}
           </button>
         </div>
       </div>
@@ -536,12 +552,7 @@ export function BatchForm({
       {deleteConfirmOpen && initial && (
         <ConfirmDialog
           title={`Hapus ${initial.batch.batchNumber}?`}
-          message={
-            `Tindakan ini tidak bisa dibatalkan — semua item dan tagihan pada batch ini akan ikut terhapus.` +
-            (batchHasPaidOrPendingBill
-              ? ' Batch ini punya tagihan yang sudah dibayar/menunggu konfirmasi.'
-              : '')
-          }
+          message="Tindakan ini tidak bisa dibatalkan — semua item dan tagihan pada batch ini akan ikut terhapus."
           onConfirm={handleDeleteConfirm}
           onCancel={() => setDeleteConfirmOpen(false)}
         />

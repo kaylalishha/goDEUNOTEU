@@ -9,7 +9,9 @@ Pajak EMS), and Price Estimator configuration.
 
 - React 19 + TypeScript, built with Vite
 - React Router (hash routing)
-- Zustand (+ `persist`) for state — currently the only data layer
+- Zustand for state
+- Supabase (Postgres + Auth + Storage) as the backend, with a
+  `localStorage` demo mode when it isn't configured
 - Tailwind CSS v4
 
 ## Running locally
@@ -19,37 +21,24 @@ npm install
 npm run dev
 ```
 
-## Current data layer
+Without a `.env` the app runs in **demo mode**: seed data in the Zustand
+store (`src/store/useStore.ts`), persisted to `localStorage`, no login.
 
-The app runs entirely on the Zustand store in `src/store/useStore.ts`,
-persisted to `localStorage`. There is no backend yet — item photos and
-bukti transfer uploads are stored as base64 data URLs in the browser. This
-is fine for demoing the workflows, but doesn't scale past a single device
-or survive a cleared browser.
+## Backend (Supabase)
 
-## Backend (scaffolded, not yet wired up)
+- **Setup guide:** [`docs/SUPABASE_SETUP.md`](docs/SUPABASE_SETUP.md):
+  create the tables, add an admin, fill `.env`, smoke test.
+- **ERD + table reference:** [`docs/ERD.md`](docs/ERD.md)
+- **Schema:** [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
+  (tables, RPC functions, RLS, storage buckets); demo customers in
+  [`supabase/seed.sql`](supabase/seed.sql).
 
-`supabase/migrations/0001_init.sql` has a Postgres schema mirroring
-`src/types.ts` (batches, items, batch_bills, tax_bills, estimator_config,
-notifications), with Row Level Security policies so customers only ever
-see their own rows and Admin GO has full access. `src/lib/supabaseClient.ts`
-is a client stub — nothing in the app calls it yet.
+With `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` set in `.env`, the
+app requires an admin login (`src/components/AuthGate.tsx`) and every
+store action reads/writes Supabase through `src/lib/remote.ts`. Pages are
+unchanged — they use the same store in both modes.
 
-To connect a real project:
-
-1. Create a project at [supabase.com](https://supabase.com), run the
-   migration (`supabase db push` or paste it into the SQL editor).
-2. Create the `batch-photos` and `bukti-transfer` storage buckets (see the
-   comment at the bottom of the migration file) and add matching storage
-   policies.
-3. Copy `.env.example` to `.env` and fill in your project URL/anon key.
-4. Set up both auth methods per the Auth section below: enable Supabase's
-   email/password provider for Admin accounts, and register LINE as a
-   custom OIDC provider for the Customer dashboard.
-5. Swap the relevant `useStore.ts` actions to call Supabase instead of
-   mutating local state — not done yet, since it touches every page.
-
-## Auth (planned)
+## Auth
 
 The two dashboards use **two separate, unrelated sign-in methods** — there
 is no shared login screen and no SSO between them.
@@ -58,11 +47,12 @@ is no shared login screen and no SSO between them.
 
 Admin GO signs in with a normal website account: Supabase Auth's built-in
 email/password provider. This is an internal tool, not a public signup —
-admin accounts are provisioned out-of-band (Supabase dashboard invite, or
-a seed script) with `role = 'admin'` and no `line_user_id`. No public
-"sign up as admin" flow exists or should exist.
+admin accounts are created in the Supabase dashboard and granted access by
+inserting their id into the `admins` table (implemented — see
+`docs/SUPABASE_SETUP.md` Step 2). No public "sign up as admin" flow
+exists or should exist.
 
-### Customer Dashboard — LINE Login only
+### Customer Dashboard — LINE Login only (planned)
 
 Customers sign in with **LINE Login and nothing else** — no email/
 password option on that dashboard. LINE Login (v2.1) is OpenID Connect–
@@ -73,13 +63,12 @@ as a custom OIDC provider on the project (LINE Developers Console → a
 "LINE Login" channel, Callback URL pointed at the Supabase Auth callback,
 Channel ID/Secret entered into Supabase's Auth provider settings).
 
-- `profiles.line_user_id` stores the `sub` claim and is how a returning
-  customer is matched back to their row; `full_name` / `avatar_url` are
-  seeded from the LINE profile on first login and editable after.
-- Every LINE login defaults to `role = 'customer'` and always has
-  `line_user_id` set — the schema's `line_user_id_iff_customer` check
-  constraint enforces that a row is either a LINE customer or an admin
-  website account, never both.
+- `customers.line_user_id` stores the `sub` claim and
+  `customers.auth_user_id` the Supabase user — together they match a
+  returning customer back to the row Admin already created for them;
+  `avatar_url` is seeded from the LINE profile on first login.
+- Customers and admins live in separate tables (`customers` vs
+  `admins`), so a LINE login can never grant admin access.
 - If a customer's phone number changes but their LINE account doesn't,
   nothing breaks — identity is the LINE account, not a phone/email.
 - No password-reset flow or "forgot password" ticket to design for on
