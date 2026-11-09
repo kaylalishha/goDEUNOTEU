@@ -265,6 +265,7 @@ export function BatchDetailDialog({
                               <tr>
                                 <th className="px-3 py-2">Tipe Barang</th>
                                 <th className="px-3 py-2">Tipe Kartu</th>
+                                <th className="px-3 py-2">Deskripsi</th>
                                 <th className="px-3 py-2">Harga (IDR)</th>
                               </tr>
                             </thead>
@@ -273,7 +274,8 @@ export function BatchDetailDialog({
                                 <tr key={it.id}>
                                   <td className="px-3 py-2 text-slate-700">{it.tipeBarang}</td>
                                   <td className="px-3 py-2 text-slate-500">{it.tipeKartu ?? '—'}</td>
-                                  <td className="px-3 py-2 text-slate-700">{formatIDR(it.priceIDR)}</td>
+                                  <td className="px-3 py-2 text-slate-700">{it.description || '—'}</td>
+                                  <td className="px-3 py-2 whitespace-nowrap text-slate-700">{formatIDR(it.priceIDR)}</td>
                                 </tr>
                               ))}
                             </tbody>
