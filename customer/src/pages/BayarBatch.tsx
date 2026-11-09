@@ -6,7 +6,7 @@ import { ImageCarousel } from '../components/ImageCarousel'
 import { BackLink, Chip, EmptyState, ImageLightbox, PageHeader, StatusBadge, primaryButton } from '../components/ui'
 import { formatDate, formatIDR } from '../shared/format'
 import { BATCH_BILL_STATUSES, type BatchBillStatus } from '../shared/types'
-import { myBatchBills, useStore } from '../store'
+import { batchOwners, myBatchBills, useStore } from '../store'
 
 // Customer Feature 1 — Bayar Batch (FR-GO-1-001 … FR-GO-1-007)
 export default function BayarBatch() {
@@ -80,19 +80,8 @@ export default function BayarBatch() {
                   const boxNumber = batch?.boxId ? s.boxes.find((x) => x.id === batch.boxId)?.boxNumber : undefined
                   const isSelected = bill.id === selectedId
                   // ReqShare: one batch is shared (and paid) by several customers, and
-                  // each of them sees who else is in it and who has paid.
-                  // Supabase note: RLS only lets a customer read their own items, bills
-                  // and customer row, so this needs a security-definer function that
-                  // returns just name + item count + status for the batch's members.
-                  const shareRows =
-                    batch?.orderType === 'ReqShare'
-                      ? Array.from(new Set(s.items.filter((i) => i.batchId === bill.batchId).map((i) => i.customerId))).map((customerId) => ({
-                          customerId,
-                          name: s.customers.find((c) => c.id === customerId)?.name ?? '—',
-                          itemCount: s.items.filter((i) => i.batchId === bill.batchId && i.customerId === customerId).length,
-                          status: s.batchBills.find((b) => b.batchId === bill.batchId && b.customerId === customerId)?.status ?? 'Belum Bayar',
-                        }))
-                      : []
+                  // each of them sees who else is in it, what they owe and who has paid.
+                  const shareRows = batch?.orderType === 'ReqShare' ? batchOwners(s, bill.batchId) : []
                   const paidCount = shareRows.filter((r) => r.status === 'Lunas').length
                   return (
                     <li key={bill.id}>
@@ -143,7 +132,7 @@ export default function BayarBatch() {
                           </div>
 
                           <div className="overflow-hidden rounded-lg border border-slate-200">
-                            <div className="flex items-center justify-between gap-3 px-4 py-3">
+                            <div className="flex items-center justify-between gap-3 px-2.5 py-3 @[400px]:px-4">
                               <span className="font-semibold text-rose-600">Tagihan kamu</span>
                               <span className="flex items-center gap-3">
                                 <span className="text-right text-xs text-slate-500">
@@ -153,7 +142,7 @@ export default function BayarBatch() {
                                 <StatusBadge status={bill.status} />
                               </span>
                             </div>
-                            <div className="border-t border-slate-200 px-4 py-3">
+                            <div className="border-t border-slate-200 px-2.5 py-3 @[400px]:px-4">
                               <div className="mb-3 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
                                 <div>
                                   <span className="block text-xs text-slate-400">Tanggal bayar</span>
@@ -190,23 +179,22 @@ export default function BayarBatch() {
                               </div>
 
                               <div className="overflow-x-auto rounded-md border border-slate-100">
-                                <table className="min-w-full text-sm">
-                                  <thead className="bg-slate-50 text-left text-xs tracking-wide text-slate-400 uppercase">
+                                <table className="min-w-full text-xs">
+                                  <thead className="bg-slate-50 text-left text-[11px] text-slate-400 uppercase">
                                     <tr>
-                                      <th className="px-2.5 py-2 font-semibold">Item</th>
-                                      <th className="px-2.5 py-2 font-semibold">Deskripsi</th>
-                                      <th className="px-2.5 py-2 text-right font-semibold">Harga (IDR)</th>
+                                      <th className="px-1.5 py-2 font-semibold">Tipe Barang</th>
+                                      <th className="px-1.5 py-2 font-semibold">Tipe Kartu</th>
+                                      <th className="px-1.5 py-2 font-semibold">Deskripsi</th>
+                                      <th className="px-1.5 py-2 text-right font-semibold">Harga (IDR)</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
                                     {items.map((it) => (
                                       <tr key={it.id}>
-                                        <td className="px-2.5 py-2 text-slate-700">
-                                          {it.tipeBarang}
-                                          {it.tipeKartu && <span className="text-slate-500"> · {it.tipeKartu}</span>}
-                                        </td>
-                                        <td className="px-2.5 py-2 break-words text-slate-700">{it.description || '—'}</td>
-                                        <td className="px-2.5 py-2 text-right whitespace-nowrap text-slate-700 tabular-nums">{formatIDR(it.priceIDR)}</td>
+                                        <td className="px-1.5 py-2 text-slate-700">{it.tipeBarang}</td>
+                                        <td className="px-1.5 py-2 text-slate-500">{it.tipeKartu ?? '—'}</td>
+                                        <td className="px-1.5 py-2 break-words text-slate-700">{it.description || '—'}</td>
+                                        <td className="px-1.5 py-2 text-right whitespace-nowrap text-slate-700 tabular-nums">{formatIDR(it.priceIDR)}</td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -217,7 +205,7 @@ export default function BayarBatch() {
                         </div>
 
                         {shareRows.length > 0 && (
-                          <div className="border-t border-slate-200 px-4 py-3">
+                          <div className="border-t border-slate-200 px-2.5 py-3 @[400px]:px-4">
                             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
                               <p className="text-xs font-semibold tracking-wide text-slate-400 uppercase">Pembayaran per customer</p>
                               <p className="text-xs text-slate-500">
@@ -225,12 +213,13 @@ export default function BayarBatch() {
                               </p>
                             </div>
                             <div className="overflow-x-auto rounded-md border border-slate-100">
-                              <table className="min-w-full text-sm">
-                                <thead className="bg-slate-50 text-left text-xs tracking-wide text-slate-400 uppercase">
+                              <table className="min-w-full text-xs">
+                                <thead className="bg-slate-50 text-left text-[11px] text-slate-400 uppercase">
                                   <tr>
-                                    <th className="px-2.5 py-2 font-semibold">Customer</th>
-                                    <th className="px-2.5 py-2 text-right font-semibold">Item</th>
-                                    <th className="px-2.5 py-2 text-right font-semibold">Status</th>
+                                    <th className="px-1.5 py-2 font-semibold">Customer</th>
+                                    <th className="px-1.5 py-2 text-right font-semibold">Item</th>
+                                    <th className="px-1.5 py-2 text-right font-semibold">Tagihan</th>
+                                    <th className="px-1.5 py-2 text-right font-semibold">Status</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -238,12 +227,13 @@ export default function BayarBatch() {
                                     const isMe = r.customerId === s.customerId
                                     return (
                                       <tr key={r.customerId} className={isMe ? 'bg-rose-50/60' : undefined}>
-                                        <td className="px-2.5 py-2 break-words text-slate-700">
+                                        <td className="px-1.5 py-2 break-words text-slate-700">
                                           {r.name}
-                                          {isMe && <span className="ml-1.5 text-xs font-medium text-rose-600">(kamu)</span>}
+                                          {isMe && <span className="block font-medium text-rose-600">(kamu)</span>}
                                         </td>
-                                        <td className="px-2.5 py-2 text-right text-slate-700 tabular-nums">{r.itemCount}</td>
-                                        <td className="px-2.5 py-2 text-right">
+                                        <td className="px-1.5 py-2 text-right text-slate-700 tabular-nums">{r.itemCount}</td>
+                                        <td className="px-1.5 py-2 text-right whitespace-nowrap text-slate-700 tabular-nums">{formatIDR(r.total)}</td>
+                                        <td className="px-1.5 py-2 text-right">
                                           <StatusBadge status={r.status} wrap />
                                         </td>
                                       </tr>

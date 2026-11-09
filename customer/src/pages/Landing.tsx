@@ -29,10 +29,10 @@ import {
   XLogoIcon,
 } from '../components/Icons'
 import { useLoginModal } from '../components/Layout'
-import { Avatar, Card, EmptyState, MediaPlaceholder, PageHeader, primaryButton, secondaryButton } from '../components/ui'
-import { formatDate, formatDateTime } from '../shared/format'
+import { Avatar, Card, EmptyState, MediaPlaceholder, PageHeader, StatusBadge, primaryButton, secondaryButton } from '../components/ui'
+import { formatDate, formatDateTime, formatIDR } from '../shared/format'
 import type { OrderStatus } from '../shared/types'
-import { myBatchBills, myBatches, myNotifications, myTaxBills, useStore } from '../store'
+import { batchOwners, myBatchBills, myBatches, myNotifications, myTaxBills, useStore } from '../store'
 
 type Icon = ComponentType<{ size?: number; className?: string }>
 
@@ -360,6 +360,8 @@ function ProfileTab() {
         <Stat label="Pajak menunggu konfirmasi" value={taxBills.filter((t) => t.status === 'Menunggu Konfirmasi').length} to="/id/ems-tax" />
       </div>
 
+      <MyBatches />
+
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-900">
@@ -402,6 +404,112 @@ function ProfileTab() {
         </button>
       </div>
     </div>
+  )
+}
+
+// Quick overview of every batch the customer has items in, grouped by the
+// box it ships in, with the batch's status, the customer's own bill and —
+// for ReqShare batches — everyone who shares it.
+function MyBatches() {
+  const s = useStore()
+  const batches = myBatches(s).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  const myBills = myBatchBills(s)
+
+  // Group by box; batches not in a box yet go last.
+  const groups = new Map<string, typeof batches>()
+  for (const b of batches) groups.set(b.boxId ?? '', [...(groups.get(b.boxId ?? '') ?? []), b])
+  const boxOrder = Array.from(groups.keys()).sort((a, b) => (a === '' ? 1 : b === '' ? -1 : a.localeCompare(b)))
+
+  return (
+    <section className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-900">Batch kamu</h3>
+        <p className="text-xs text-slate-500">
+          {batches.length} batch · {boxOrder.filter((k) => k !== '').length} box
+        </p>
+      </div>
+      {batches.length === 0 ? (
+        <EmptyState message="Belum ada batch untuk kamu." />
+      ) : (
+        boxOrder.map((boxId) => {
+          const box = s.boxes.find((x) => x.id === boxId)
+          return (
+            <div key={boxId || 'no-box'} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3">
+                <p className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                  <PackageIcon size={16} className="text-rose-500" />
+                  {box ? box.boxNumber : 'Belum masuk box'}
+                </p>
+                {box && <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">{box.status}</span>}
+              </div>
+              <ul className="divide-y divide-slate-100">
+                {(groups.get(boxId) ?? []).map((batch) => {
+                  const bill = myBills.find((b) => b.batchId === batch.id)
+                  const mine = s.items.filter((i) => i.batchId === batch.id && i.customerId === s.customerId)
+                  const owners = batch.orderType === 'ReqShare' ? batchOwners(s, batch.id) : []
+                  return (
+                    <li key={batch.id} className="flex flex-col gap-2 px-4 py-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <Link to="/id/order" className="text-sm font-bold text-rose-600 hover:underline">
+                            {batch.batchNumber}
+                          </Link>
+                          <span className="ml-2 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs font-medium text-rose-600">
+                            {batch.orderType}
+                          </span>
+                          <p className="mt-0.5 text-xs text-slate-400">{formatDate(batch.createdAt)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-slate-400">Status order</p>
+                          <p className="text-sm font-medium text-slate-800">{batch.orderStatus}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs">
+                        <span className="text-slate-500">
+                          Tagihan kamu: {mine.length} item ·{' '}
+                          <span className="font-semibold text-slate-800 tabular-nums">{formatIDR(bill?.total ?? mine.reduce((sum, i) => sum + i.priceIDR, 0))}</span>
+                        </span>
+                        <StatusBadge status={bill?.status ?? 'Belum Bayar'} />
+                      </div>
+
+                      {owners.length > 0 && (
+                        <div>
+                          <p className="mb-1 text-xs text-slate-400">
+                            Pemilik batch · {owners.filter((o) => o.status === 'Lunas').length} dari {owners.length} sudah lunas
+                          </p>
+                          <ul className="flex flex-col gap-1">
+                            {owners.map((o) => {
+                              const isMe = o.customerId === s.customerId
+                              return (
+                                <li
+                                  key={o.customerId}
+                                  className={`flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-md px-2 py-1 text-xs ${isMe ? 'bg-rose-50/60' : ''}`}
+                                >
+                                  <span className="text-slate-700">
+                                    {o.name}
+                                    {isMe && <span className="ml-1 font-medium text-rose-600">(kamu)</span>}
+                                  </span>
+                                  <span className="flex items-center gap-2 text-slate-500">
+                                    <span className="tabular-nums">{o.itemCount} item</span>
+                                    <span className="tabular-nums text-slate-700">{formatIDR(o.total)}</span>
+                                    <StatusBadge status={o.status} />
+                                  </span>
+                                </li>
+                              )
+                            })}
+                          </ul>
+                        </div>
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )
+        })
+      )}
+    </section>
   )
 }
 

@@ -163,6 +163,33 @@ export function myBatches(s: Data): Batch[] {
   return s.batches.filter((b) => ids.has(b.id))
 }
 
+// Everyone with items in a batch: their item count, bill total (items +
+// upnotes, falling back to the item sum before a bill exists) and payment
+// status. Used for ReqShare batches, which several customers share.
+// Supabase note: RLS only lets a customer read their own rows, so this needs
+// a security-definer function returning these fields for the batch's members.
+export interface BatchOwner {
+  customerId: string
+  name: string
+  itemCount: number
+  total: number
+  status: BatchBill['status']
+}
+export function batchOwners(s: Data, batchId: string): BatchOwner[] {
+  const items = s.items.filter((i) => i.batchId === batchId)
+  return Array.from(new Set(items.map((i) => i.customerId))).map((customerId) => {
+    const theirItems = items.filter((i) => i.customerId === customerId)
+    const theirBill = s.batchBills.find((b) => b.batchId === batchId && b.customerId === customerId)
+    return {
+      customerId,
+      name: s.customers.find((c) => c.id === customerId)?.name ?? '—',
+      itemCount: theirItems.length,
+      total: theirBill?.total ?? theirItems.reduce((sum, i) => sum + i.priceIDR, 0),
+      status: theirBill?.status ?? 'Belum Bayar',
+    }
+  })
+}
+
 export function unpaidBatchBillsForTax(s: Data, tax: TaxBill): BatchBill[] {
   const batchIds = new Set(s.batches.filter((b) => b.boxId === tax.boxId).map((b) => b.id))
   return s.batchBills.filter(
