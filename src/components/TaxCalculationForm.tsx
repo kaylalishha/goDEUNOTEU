@@ -361,7 +361,6 @@ export function TaxCalculationForm({
                                     <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
                                       {itemLabel(i)}
                                     </span>
-                                    <span>{i.description || <span className="text-slate-400">—</span>}</span>
                                     {!isKartu && (
                                       <span className="flex items-center gap-1">
                                         <input
