@@ -21,11 +21,15 @@ const STATUS_TONE: Record<string, keyof typeof TONE_CLASSES> = {
   Lunas: 'success',
 }
 
-export function StatusBadge({ status }: { status: string }) {
+// `wrap` lets a long status ("Menunggu Konfirmasi") break onto two lines in
+// tight table cells instead of widening the table.
+export function StatusBadge({ status, wrap = false }: { status: string; wrap?: boolean }) {
   const tone = STATUS_TONE[status] ?? 'neutral'
   return (
     <span
-      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${TONE_CLASSES[tone]}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${
+        wrap ? 'text-center leading-tight' : 'whitespace-nowrap'
+      } ${TONE_CLASSES[tone]}`}
     >
       {status}
     </span>
@@ -212,7 +216,17 @@ export function MediaPlaceholder({ label, src, className = '' }: { label: string
   )
 }
 
-export function Avatar({ name, size = 32 }: { name: string; size?: number }) {
+export function Avatar({ name, size = 32, src }: { name: string; size?: number; src?: string }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="shrink-0 rounded-full object-cover"
+        style={{ width: size, height: size }}
+      />
+    )
+  }
   return (
     <span
       className="flex shrink-0 items-center justify-center rounded-full bg-rose-100 font-semibold text-rose-700"

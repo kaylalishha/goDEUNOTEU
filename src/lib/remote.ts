@@ -85,6 +85,7 @@ interface ItemRow {
   customer_id: string
   tipe_barang: TipeBarang
   tipe_kartu: TipeKartu | null
+  description: string | null
   price_idr: number
   weight_grams: number | null
   tax_bill_id: string | null
@@ -187,6 +188,7 @@ export async function fetchAll(): Promise<RemoteSnapshot> {
     customerId: r.customer_id,
     tipeBarang: r.tipe_barang,
     tipeKartu: r.tipe_kartu ?? undefined,
+    description: r.description ?? undefined,
     priceIDR: Number(r.price_idr),
     weightGrams: r.weight_grams == null ? undefined : Number(r.weight_grams),
     createdAt: iso(r.created_at),
@@ -311,6 +313,7 @@ export interface RemoteSaveBatchInput {
     customerId: string
     tipeBarang: TipeBarang
     tipeKartu?: TipeKartu
+    description?: string
     priceIDR: number
     weightGrams?: number
   }>
@@ -343,6 +346,7 @@ export async function saveBatch(input: RemoteSaveBatchInput): Promise<number> {
         customer_id: it.customerId,
         tipe_barang: it.tipeBarang,
         tipe_kartu: it.tipeKartu ?? null,
+        description: it.description ?? null,
         price_idr: it.priceIDR,
         weight_grams: it.weightGrams ?? null,
       })),

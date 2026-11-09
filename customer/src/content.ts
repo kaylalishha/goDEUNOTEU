@@ -6,7 +6,8 @@
 // on purpose; leaving them empty renders a labelled placeholder box.
 
 export const BRAND = {
-  name: 'GO DEUNOTEU',
+  name: 'DEUNOTEU GO',
+  logoSrc: '/brand/logo.jpg',
 }
 
 export const HERO = {
@@ -16,14 +17,6 @@ export const HERO = {
     'Rincian biayanya terbuka dari awal, dan progres pesananmu bisa kamu pantau sendiri kapan saja.',
 }
 
-// Featured carousel in the hero (auto-advances every 5 s).
-// TODO: real featured batches; set imageSrc to each batch's cover photo.
-export const HIGHLIGHTS: Array<{ title: string; caption: string; href: string; imageSrc?: string }> = [
-  { title: '[Judul batch unggulan 1]', caption: 'Mulai Rp —', href: '/id?tab=order' },
-  { title: '[Judul batch unggulan 2]', caption: 'Mulai Rp —', href: '/id?tab=order' },
-  { title: '[Judul batch unggulan 3]', caption: 'Mulai Rp —', href: '/id?tab=order' },
-]
-
 // Row under the carousel. TODO: real count + thumbnails.
 export const HIGHLIGHT_ROW = {
   label: '[N] batch lainnya sedang dibuka',
@@ -31,12 +24,10 @@ export const HIGHLIGHT_ROW = {
   thumbnailSrcs: [undefined, undefined, undefined] as Array<string | undefined>,
 }
 
-// TODO: replace every value with a figure GO DEUNOTEU can back up.
 export const STATS: Array<{ value: string; label: string }> = [
-  { value: '000+', label: 'Pesanan selesai' },
-  { value: '000+', label: 'Testimoni pembeli' },
-  { value: '20XX', label: 'Berdiri sejak' },
-  { value: '0.0', label: 'Rating pembeli' },
+  { value: '1000+', label: 'Pesanan selesai' },
+  { value: '500+', label: 'Testimoni pembeli' },
+  { value: '2020', label: 'Berdiri sejak' },
 ]
 
 export const ABOUT = {
@@ -56,25 +47,21 @@ export const SOCIALS: Array<{ kind: 'line' | 'x' | 'instagram' | 'shop'; title: 
   { kind: 'shop', title: 'Toko', href: '#' },
 ]
 
-// TODO: real admin team. lineHref = each admin's LINE profile link.
+// TODO: lineHref = each admin's LINE profile link.
 export const ADMINS: Array<{ name: string; role: string; bio: string; lineHref: string; avatarSrc?: string }> = [
   {
-    name: 'Nama Admin',
+    name: 'Michelle',
+    role: 'Admin Order, Tax, dan Pengiriman',
+    bio: 'Yang mau persod dan reqshare Aikatsu bisa langsung PC LINE aja, on 24/7 kecuali tidur.',
+    lineHref: '#',
+    avatarSrc: '/admins/michelle.jpg',
+  },
+  {
+    name: 'Kue',
     role: 'Admin Order',
-    bio: '[Perkenalan singkat admin — apa yang bisa dibantu dan kapan bisa dihubungi.]',
+    bio: 'Open persod dan reqshare, fast respond.',
     lineHref: '#',
-  },
-  {
-    name: 'Nama Admin',
-    role: 'Admin Pembayaran',
-    bio: '[Perkenalan singkat admin — apa yang bisa dibantu dan kapan bisa dihubungi.]',
-    lineHref: '#',
-  },
-  {
-    name: 'Nama Admin',
-    role: 'Admin Pengiriman',
-    bio: '[Perkenalan singkat admin — apa yang bisa dibantu dan kapan bisa dihubungi.]',
-    lineHref: '#',
+    avatarSrc: '/admins/kue.jpg',
   },
 ]
 
@@ -86,23 +73,21 @@ export const TESTIMONIALS_SECTION = {
   seeAllHref: '#', // TODO: testimonial page
 }
 
-// TODO: real buyer testimonials. `photoRatio` only shapes the placeholder
-// (width / height) so the masonry wall looks like it will with real photos;
-// set photoSrc and it is ignored. Leave photo out for a text-only card.
+// Buyer testimonials (first 6 shown on Home). Photos live in public/testimoni/.
+// Every card has the same size: photos are cropped to 4:3 (landscape),
+// centred, so keep the important part of a photo in the middle.
+// `name` is optional; leave it out to hide the buyer row. Leave `photo` out
+// for a text-only card.
 export const TESTIMONIALS: Array<{
   text: string
-  name: string
-  photo?: { photoSrc?: string; photoRatio: number }
+  name?: string
+  photo?: { photoSrc?: string }
 }> = [
-  { text: '[Testimoni pembeli]', name: 'Nama Pembeli', photo: { photoRatio: 3 / 4 } },
-  { text: '[Testimoni pembeli]', name: 'Nama Pembeli', photo: { photoRatio: 1 } },
-  { text: '[Testimoni pembeli]', name: 'Nama Pembeli', photo: { photoRatio: 4 / 5 } },
-  { text: '[Testimoni pembeli]', name: 'Nama Pembeli', photo: { photoRatio: 1 } },
-  { text: '[Testimoni pembeli]', name: 'Nama Pembeli', photo: { photoRatio: 3 / 4 } },
-  { text: '[Testimoni pembeli]', name: 'Nama Pembeli', photo: { photoRatio: 4 / 3 } },
-  { text: '[Testimoni pembeli]', name: 'Nama Pembeli', photo: { photoRatio: 1 } },
-  { text: '[Testimoni pembeli]', name: 'Nama Pembeli', photo: { photoRatio: 4 / 5 } },
-  { text: '[Testimoni pembeli tanpa foto — tampil dengan tanda kutip]', name: 'Nama Pembeli' },
+  { text: 'lov lov donat kk kue kk cel 🩷', photo: { photoSrc: '/testimoni/testi-1.jpg' } },
+  { text: 'thank you kak micelll 🫶🫶🩷🩷🥺🥺', photo: { photoSrc: '/testimoni/testi-5.jpg' } },
+  { text: 'Thank you Deunoteu 🩷', photo: { photoSrc: '/testimoni/testi-3.jpg' } },
+  { text: 'maaciii kakkk mikkk ❤️❤️😘', photo: { photoSrc: '/testimoni/testi-2.jpg' } },
+  { text: 'THANK YOU DEUNOTEU <3', photo: { photoSrc: '/testimoni/testi-4.jpg' } },
 ]
 
 export const REVIEW_PROMPT = {

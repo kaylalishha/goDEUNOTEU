@@ -36,8 +36,8 @@ this browser's localStorage.
   "Masuk sebagai customer demo" picker.
 - Submitting a proof follows the same rules as the backend's
   `submit_payment_proof`: own bill only, only while Belum Bayar.
-- A pending bill shows "Simulasi admin (demo)" Konfirmasi / Tolak buttons,
-  standing in for the admin's review.
+- After a proof is submitted the bill stays "Menunggu Konfirmasi"; only the
+  admin can confirm or reject it (not possible in demo mode).
 - Profil → "Reset data demo" restores the seed data.
 
 `src/shared/` holds copies of the admin's `types.ts`, `calc.ts`,

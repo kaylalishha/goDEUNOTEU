@@ -3,15 +3,22 @@ import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from './shared/types'
 // Business settings the PRD leaves open ("Open Gaps"). Each one is a
 // placeholder until Admin GO decides; change it here, not in page code.
 
-// FR-GO-PAY-002: payment instructions per method. TODO: real account
-// numbers / QRIS image. The MVP has no admin-maintained source for these yet.
-export const PAYMENT_INSTRUCTIONS: Record<PaymentMethod, { title: string; lines: string[] }> = {
-  QRIS: { title: 'QRIS', lines: ['Scan kode QRIS GO DEUNOTEU.', '[Gambar QRIS menyusul]'] },
-  Shopeepay: { title: 'ShopeePay', lines: ['Transfer ke ShopeePay [nomor].', 'a.n. [nama pemilik]'] },
-  DANA: { title: 'DANA', lines: ['Transfer ke DANA [nomor].', 'a.n. [nama pemilik]'] },
-  GoPay: { title: 'GoPay', lines: ['Transfer ke GoPay [nomor].', 'a.n. [nama pemilik]'] },
-  BCA: { title: 'Bank BCA', lines: ['No. rekening [nomor rekening].', 'a.n. [nama pemilik]'] },
-  SeaBank: { title: 'SeaBank', lines: ['No. rekening [nomor rekening].', 'a.n. [nama pemilik]'] },
+// FR-GO-PAY-002: payment instructions per method. The MVP has no
+// admin-maintained source for these yet, so change them here. `logoSrc` is
+// the button logo and `imageSrc` an extra image (e.g. the QRIS code); both
+// are files in public/.
+export const PAYMENT_INSTRUCTIONS: Record<PaymentMethod, { title: string; logoSrc: string; lines: string[]; imageSrc?: string }> = {
+  QRIS: {
+    title: 'QRIS',
+    logoSrc: '/payment/logos/qris.png',
+    lines: ['Scan kode QRIS DEUNOTEU GO di bawah ini.', 'Bayar dari HP ini? Simpan gambarnya, lalu upload di aplikasi e-wallet / m-banking kamu.'],
+    imageSrc: '/payment/qris-deunoteu.jpg',
+  },
+  Shopeepay: { title: 'ShopeePay', logoSrc: '/payment/logos/shopeepay.png', lines: ['Transfer ke ShopeePay 081211891305.', 'a.n. D'] },
+  DANA: { title: 'DANA', logoSrc: '/payment/logos/dana.png', lines: ['Transfer ke DANA 081211891305.', 'a.n. M'] },
+  GoPay: { title: 'GoPay', logoSrc: '/payment/logos/gopay.png', lines: ['Transfer ke GoPay 081211891305.', 'a.n. ML'] },
+  BCA: { title: 'Bank BCA', logoSrc: '/payment/logos/bca.png', lines: ['No. rekening 7120646383.', 'a.n. ML'] },
+  SeaBank: { title: 'SeaBank', logoSrc: '/payment/logos/seabank.png', lines: ['No. rekening 901917729051.', 'a.n. ML'] },
 }
 
 export const BATCH_PAYMENT_METHODS: PaymentMethod[] = [...PAYMENT_METHOD_OPTIONS]

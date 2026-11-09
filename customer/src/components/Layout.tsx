@@ -41,9 +41,8 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen bg-slate-50">
       <aside className="hidden w-64 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
-        <div className="border-b border-slate-200 px-5 py-5">
-          <p className="text-xs font-semibold tracking-wide text-rose-500 uppercase">{BRAND.name}</p>
-          <h1 className="text-lg font-bold text-slate-900">Customer Dashboard</h1>
+        <div className="flex justify-center border-b border-slate-200 px-5 py-5">
+          <img src={BRAND.logoSrc} alt={BRAND.name} className="w-full max-w-48 rounded-lg" />
         </div>
         <nav className="flex-1 space-y-1 px-3 py-4" aria-label="Navigasi utama">
           {NAV.map((item) => (

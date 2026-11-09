@@ -116,6 +116,8 @@ export interface Item {
   customerId: string
   tipeBarang: TipeBarang
   tipeKartu?: TipeKartu
+  // Optional note by Admin GO, e.g. which card this is ("Odette Swan").
+  description?: string
   priceIDR: number
   weightGrams?: number
   createdAt: string

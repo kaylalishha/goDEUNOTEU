@@ -35,7 +35,6 @@ export function PaymentPanel({
   onFileStateChange?: (hasFile: boolean) => void
 }) {
   const submitPayment = useStore((s) => s.submitPayment)
-  const demoAdminDecision = useStore((s) => s.demoAdminDecision)
   const [method, setMethod] = useState<PaymentMethod | null>(methods.length === 1 ? methods[0] : null)
   const [file, setFile] = useState<{ name: string; dataUrl: string } | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
@@ -149,23 +148,6 @@ export function PaymentPanel({
           {bill.status === 'Menunggu Konfirmasi' && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
               <p className="text-xs text-amber-800">Bukti transfer sedang dicek admin.</p>
-              <p className="mt-2 text-xs font-semibold tracking-wide text-amber-800 uppercase">Simulasi admin (demo)</p>
-              <div className="mt-1.5 flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => demoAdminDecision(kind, bill.id, 'confirm')}
-                  className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
-                >
-                  Konfirmasi
-                </button>
-                <button
-                  type="button"
-                  onClick={() => demoAdminDecision(kind, bill.id, 'reject')}
-                  className="rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-600 hover:bg-rose-50"
-                >
-                  Tolak
-                </button>
-              </div>
             </div>
           )}
         </div>
@@ -177,19 +159,21 @@ export function PaymentPanel({
               <p className="rounded-lg bg-slate-50 px-3 py-4 text-center text-sm text-slate-400">{emptyHint} untuk memunculkan cara bayarnya.</p>
             ) : (
               <>
-                <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Metode pembayaran">
+                <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Metode pembayaran">
                   {methods.map((m) => (
                     <button
                       key={m}
                       type="button"
                       role="radio"
                       aria-checked={method === m}
+                      aria-label={PAYMENT_INSTRUCTIONS[m].title}
+                      title={PAYMENT_INSTRUCTIONS[m].title}
                       onClick={() => setMethod(m)}
-                      className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
-                        method === m ? 'border-rose-600 bg-rose-50 text-rose-700' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                      className={`flex h-12 items-center justify-center rounded-md border bg-white px-2.5 transition ${
+                        method === m ? 'border-rose-600 ring-2 ring-rose-200' : 'border-slate-300 hover:border-slate-400 hover:bg-slate-50'
                       }`}
                     >
-                      {PAYMENT_INSTRUCTIONS[m].title}
+                      <img src={PAYMENT_INSTRUCTIONS[m].logoSrc} alt="" className="max-h-6 max-w-full object-contain" />
                     </button>
                   ))}
                 </div>
@@ -198,6 +182,25 @@ export function PaymentPanel({
                     {PAYMENT_INSTRUCTIONS[method].lines.map((l) => (
                       <p key={l}>{l}</p>
                     ))}
+                    {PAYMENT_INSTRUCTIONS[method].imageSrc && (
+                      <div className="mt-3 flex flex-col items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setLightbox(PAYMENT_INSTRUCTIONS[method].imageSrc!)}
+                          aria-label={`Perbesar gambar ${PAYMENT_INSTRUCTIONS[method].title}`}
+                          className="w-full max-w-72 overflow-hidden rounded-lg border border-slate-200 bg-white"
+                        >
+                          <img src={PAYMENT_INSTRUCTIONS[method].imageSrc} alt={`Kode ${PAYMENT_INSTRUCTIONS[method].title} DEUNOTEU GO`} className="block w-full" />
+                        </button>
+                        <a
+                          href={PAYMENT_INSTRUCTIONS[method].imageSrc}
+                          download
+                          className="text-sm font-medium text-rose-600 hover:text-rose-700"
+                        >
+                          Simpan gambar {PAYMENT_INSTRUCTIONS[method].title}
+                        </a>
+                      </div>
+                    )}
                     <p className="mt-1 text-xs text-slate-500">Transfer tepat {formatIDR(total)}.</p>
                   </div>
                 )}

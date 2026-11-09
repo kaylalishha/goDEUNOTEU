@@ -25,6 +25,7 @@ interface ItemRow {
   id?: string
   tipeBarang: TipeBarang | ''
   tipeKartu?: TipeKartu
+  description?: string
   priceIDR: number
   weightGrams?: number
 }
@@ -51,6 +52,7 @@ function toCustomerOrders(items: Item[]): CustomerOrderRow[] {
       id: it.id,
       tipeBarang: it.tipeBarang,
       tipeKartu: it.tipeKartu,
+      description: it.description,
       priceIDR: it.priceIDR,
       weightGrams: it.weightGrams,
     }
@@ -220,6 +222,7 @@ export function BatchForm({
             id: it.id,
             tipeBarang: it.tipeBarang as TipeBarang,
             tipeKartu: it.tipeBarang === 'Kartu' ? it.tipeKartu : undefined,
+            description: it.description?.trim() || undefined,
             priceIDR: it.priceIDR,
             weightGrams: it.tipeBarang !== 'Kartu' ? it.weightGrams : undefined,
           })),
@@ -473,6 +476,20 @@ export function BatchForm({
                           ✕
                         </button>
                       )}
+                    </div>
+                    <div className="col-span-11">
+                      <label className="mb-1 block text-xs text-slate-500">
+                        Deskripsi <span className="text-slate-400">(opsional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        maxLength={200}
+                        className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                        value={it.description ?? ''}
+                        onChange={(e) => updateItem(order.localId, it.localId, { description: e.target.value })}
+                        placeholder="contoh: Odette Swan"
+                        disabled={isLocked}
+                      />
                     </div>
                   </div>
                 ))}

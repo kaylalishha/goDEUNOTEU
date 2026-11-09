@@ -18,16 +18,12 @@ const PLACEHOLDER_RECEIPT =
     </svg>
   `)
 
-const PLACEHOLDER_PRODUCT_PHOTO =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="480" height="480">
-      <rect width="480" height="480" fill="#fff1f2"/>
-      <rect x="24" y="24" width="432" height="432" fill="#ffffff" stroke="#fecdd3" stroke-width="3" stroke-dasharray="10 8"/>
-      <text x="240" y="230" font-family="sans-serif" font-size="20" text-anchor="middle" fill="#9f1239">foto product</text>
-      <text x="240" y="258" font-family="sans-serif" font-size="13" text-anchor="middle" fill="#fb7185">(yg biasa ada di notes line)</text>
-    </svg>
-  `)
+// Customer-only: real sample product photos (public/batches/) for the demo
+// batches, so the batch record looks like it will with real data. Some
+// batches get two so the carousel can be tried. The admin's seed still uses
+// an SVG placeholder here.
+const SAMPLE_PRODUCT_PHOTOS = [1, 2, 3, 4, 5].map((n) => `/batches/sample-product-${n}.jpg`)
+const samplePhotos = (...indexes: number[]) => indexes.map((i) => SAMPLE_PRODUCT_PHOTOS[i])
 
 function daysAgoIso(days: number): string {
   const d = new Date()
@@ -66,7 +62,7 @@ export const seedBatches: Batch[] = [
     boxId: 'box_001',
     orderIdWH: 'WH-2026-0001',
     orderType: 'ReqShare',
-    photoDataUrls: [PLACEHOLDER_PRODUCT_PHOTO, PLACEHOLDER_PRODUCT_PHOTO],
+    photoDataUrls: samplePhotos(0, 1),
     orderStatus: 'Di WH Indonesia',
     createdAt: daysAgoIso(12),
     updatedAt: daysAgoIso(9),
@@ -77,7 +73,7 @@ export const seedBatches: Batch[] = [
     boxId: 'box_002',
     orderIdWH: 'WH-2026-0002',
     orderType: 'ReqShare',
-    photoDataUrls: [PLACEHOLDER_PRODUCT_PHOTO],
+    photoDataUrls: samplePhotos(1),
     orderStatus: 'Di Bea Cukai',
     createdAt: daysAgoIso(4),
     updatedAt: daysAgoIso(4),
@@ -90,7 +86,7 @@ export const seedBatches: Batch[] = [
     // places it into a box, which is what actually advances its status
     orderIdWH: 'WH-2026-0003',
     orderType: 'Persod',
-    photoDataUrls: [],
+    photoDataUrls: samplePhotos(2, 3),
     orderStatus: 'Dibeli dari Seller',
     createdAt: daysAgoIso(1),
     updatedAt: daysAgoIso(1),
@@ -101,7 +97,7 @@ export const seedBatches: Batch[] = [
     boxId: 'box_002',
     orderIdWH: 'WH-2026-0004',
     orderType: 'ReqShare',
-    photoDataUrls: [],
+    photoDataUrls: samplePhotos(3),
     orderStatus: 'Di Bea Cukai',
     createdAt: hoursAgoIso(7),
     updatedAt: hoursAgoIso(7),
@@ -113,7 +109,7 @@ export const seedBatches: Batch[] = [
     // grouped into a box together via the Box Management page
     orderIdWH: 'WH-2026-0005',
     orderType: 'Admin',
-    photoDataUrls: [],
+    photoDataUrls: samplePhotos(4, 0),
     orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(6),
     updatedAt: hoursAgoIso(6),
@@ -123,7 +119,7 @@ export const seedBatches: Batch[] = [
     batchNumber: 'BATCH-06',
     orderIdWH: 'WH-2026-0006',
     orderType: 'ReqShare',
-    photoDataUrls: [],
+    photoDataUrls: samplePhotos(0),
     orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(5),
     updatedAt: hoursAgoIso(5),
@@ -133,7 +129,7 @@ export const seedBatches: Batch[] = [
     batchNumber: 'BATCH-07',
     orderIdWH: 'WH-2026-0007',
     orderType: 'Persod',
-    photoDataUrls: [],
+    photoDataUrls: samplePhotos(1, 2),
     orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(4),
     updatedAt: hoursAgoIso(4),
@@ -143,7 +139,7 @@ export const seedBatches: Batch[] = [
     batchNumber: 'BATCH-08',
     orderIdWH: 'WH-2026-0008',
     orderType: 'ReqShare',
-    photoDataUrls: [],
+    photoDataUrls: samplePhotos(2),
     orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(3),
     updatedAt: hoursAgoIso(3),
@@ -153,7 +149,7 @@ export const seedBatches: Batch[] = [
     batchNumber: 'BATCH-09',
     orderIdWH: 'WH-2026-0009',
     orderType: 'Admin',
-    photoDataUrls: [],
+    photoDataUrls: samplePhotos(3, 4),
     orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(2),
     updatedAt: hoursAgoIso(2),
@@ -163,7 +159,7 @@ export const seedBatches: Batch[] = [
     batchNumber: 'BATCH-10',
     orderIdWH: 'WH-2026-0010',
     orderType: 'ReqShare',
-    photoDataUrls: [],
+    photoDataUrls: samplePhotos(4),
     orderStatus: 'Dibeli dari Seller',
     createdAt: hoursAgoIso(1),
     updatedAt: hoursAgoIso(1),
@@ -294,6 +290,40 @@ export const seedItems: Item[] = [
     id: 'item_011',
     batchId: 'batch_06',
     customerId: 'cust_aiko',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Skirt',
+    description: 'Odette Swan',
+    priceIDR: 96000,
+    createdAt: hoursAgoIso(5),
+    updatedAt: hoursAgoIso(5),
+  },
+  // Customer-only demo data: BATCH-06 is a ReqShare shared by three
+  // customers, so the "Pembayaran per customer" table has something to show.
+  {
+    id: 'item_016',
+    batchId: 'batch_06',
+    customerId: 'cust_bunga',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Tops',
+    description: 'Multicolor Vest',
+    priceIDR: 85000,
+    createdAt: hoursAgoIso(5),
+    updatedAt: hoursAgoIso(5),
+  },
+  {
+    id: 'item_017',
+    batchId: 'batch_06',
+    customerId: 'cust_bunga',
+    tipeBarang: 'Kartu',
+    tipeKartu: 'Shoes',
+    priceIDR: 70000,
+    createdAt: hoursAgoIso(5),
+    updatedAt: hoursAgoIso(5),
+  },
+  {
+    id: 'item_018',
+    batchId: 'batch_06',
+    customerId: 'cust_citra',
     tipeBarang: 'Kartu',
     tipeKartu: 'Tops',
     priceIDR: 96000,
@@ -476,6 +506,43 @@ export const seedBatchBills: BatchBill[] = [
     total: 96000,
     status: 'Belum Bayar',
     createdAt: hoursAgoIso(5),
+  },
+  {
+    id: 'bbill_014',
+    batchId: 'batch_06',
+    batchNumber: 'BATCH-06',
+    customerId: 'cust_bunga',
+    itemIds: ['item_016', 'item_017'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 155000,
+    status: 'Lunas',
+    createdAt: hoursAgoIso(5),
+    paidAt: hoursAgoIso(3),
+    buktiTransfer: {
+      fileName: 'bukti_bunga_batch06.png',
+      dataUrl: PLACEHOLDER_RECEIPT,
+      uploadedAt: hoursAgoIso(4),
+      paymentMethod: 'QRIS',
+    },
+  },
+  {
+    id: 'bbill_015',
+    batchId: 'batch_06',
+    batchNumber: 'BATCH-06',
+    customerId: 'cust_citra',
+    itemIds: ['item_018'],
+    upnotesTotal: 0,
+    bankAccount: 'BCA 1234567890 a.n. Admin GO Aikatsu',
+    total: 96000,
+    status: 'Menunggu Konfirmasi',
+    createdAt: hoursAgoIso(5),
+    buktiTransfer: {
+      fileName: 'bukti_citra_batch06.png',
+      dataUrl: PLACEHOLDER_RECEIPT,
+      uploadedAt: hoursAgoIso(2),
+      paymentMethod: 'DANA',
+    },
   },
   {
     id: 'bbill_010',

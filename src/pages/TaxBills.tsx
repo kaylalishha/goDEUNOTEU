@@ -55,11 +55,15 @@ export default function TaxBills() {
   const boxOptions = useMemo(() => {
     const idsWithBatches = new Set(batches.map((b) => b.boxId).filter(Boolean))
     const idsAlreadyPublished = new Set(taxBills.map((t) => t.boxId))
-    return boxes
-      .filter((box) => PUBLISHABLE_BOX_STATUSES.includes(box.status))
-      .filter((box) => idsWithBatches.has(box.id))
-      .filter((box) => !idsAlreadyPublished.has(box.id))
-      .map((box) => ({ id: box.id, boxNumber: box.boxNumber }))
+    // Ineligible boxes are still listed (disabled, with the reason) so Admin
+    // can see why a box can't be picked instead of facing an empty dropdown.
+    return boxes.map((box) => {
+      let disabledReason: string | undefined
+      if (idsAlreadyPublished.has(box.id)) disabledReason = 'sudah dipublikasikan'
+      else if (!PUBLISHABLE_BOX_STATUSES.includes(box.status)) disabledReason = `status masih "${box.status}"`
+      else if (!idsWithBatches.has(box.id)) disabledReason = 'belum ada batch'
+      return { id: box.id, boxNumber: box.boxNumber, disabledReason }
+    })
   }, [boxes, batches, taxBills])
 
   function itemsByBox(boxId: string) {
@@ -299,6 +303,7 @@ export default function TaxBills() {
           <TaxCalculationForm
             boxOptions={boxOptions}
             itemsByBox={itemsByBox}
+            getBatchNumber={(id) => batches.find((b) => b.id === id)?.batchNumber ?? '—'}
             customers={customers}
             onSaveWeights={setItemWeights}
             onPublish={publishTaxBills}

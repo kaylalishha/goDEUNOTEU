@@ -5,7 +5,6 @@ import {
   ABOUT,
   ADMINS,
   HERO,
-  HIGHLIGHTS,
   REVIEW_PROMPT,
   SOCIALS,
   STATS,
@@ -55,7 +54,7 @@ const SOCIAL_ICONS: Record<string, Icon> = { line: ChatIcon, x: XLogoIcon, insta
 function HomeTab() {
   return (
     <div className="flex flex-col gap-8">
-      <section className="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+      <section>
         <Card className="flex flex-col justify-center p-6 md:p-8">
           <p className="text-xs font-semibold tracking-wide text-rose-500 uppercase">Group Order · Aikatsu</p>
           <h2 className="mt-2 text-3xl leading-tight font-bold text-slate-900 md:text-4xl">
@@ -71,24 +70,9 @@ function HomeTab() {
             </Link>
           </div>
         </Card>
-        <div className="grid grid-cols-3 gap-3 lg:grid-cols-1 lg:grid-rows-3">
-          {HIGHLIGHTS.map((h, i) => (
-            <Link
-              key={i}
-              to={h.href}
-              className="group flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-rose-200 hover:shadow-md lg:flex-row"
-            >
-              <MediaPlaceholder src={h.imageSrc} label="" className="aspect-square w-full lg:aspect-auto lg:h-full lg:w-28 lg:border-0 lg:border-r" />
-              <div className="flex min-w-0 flex-1 flex-col justify-center p-3">
-                <p className="line-clamp-2 text-xs font-semibold text-slate-900 md:text-sm">{h.title}</p>
-                <p className="mt-1 text-xs text-slate-500">{h.caption}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
       </section>
 
-      <section className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      <section className="grid grid-cols-3 gap-4">
         {STATS.map((s) => (
           <Card key={s.label}>
             <p className="text-2xl font-bold text-slate-900 tabular-nums">{s.value}</p>
@@ -123,11 +107,11 @@ function HomeTab() {
         </div>
         <div>
           <h4 className="mb-3 text-sm font-semibold text-slate-900">Tim admin</h4>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             {ADMINS.map((a, i) => (
               <Card key={i} className="flex flex-col">
                 <div className="flex items-center gap-3">
-                  <Avatar name={a.name} size={40} />
+                  <Avatar name={a.name} size={40} src={a.avatarSrc} />
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-900">{a.name}</p>
                     <p className="text-xs text-slate-500">{a.role}</p>
@@ -165,10 +149,12 @@ function HomeTab() {
               {t.photo && <MediaPlaceholder src={t.photo.photoSrc} label="Foto dari pembeli" className="aspect-[4/3] w-full border-0 border-b" />}
               <div className="flex flex-1 flex-col p-4">
                 <p className="flex-1 text-sm text-slate-600">{t.text}</p>
-                <figcaption className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
-                  <Avatar name={t.name} size={24} />
-                  <span className="truncate text-xs font-semibold text-slate-900">{t.name}</span>
-                </figcaption>
+                {t.name && (
+                  <figcaption className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">
+                    <Avatar name={t.name} size={24} />
+                    <span className="truncate text-xs font-semibold text-slate-900">{t.name}</span>
+                  </figcaption>
+                )}
               </div>
             </figure>
           ))}

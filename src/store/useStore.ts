@@ -58,6 +58,7 @@ export interface CustomerOrderItemInput {
   id?: string
   tipeBarang: TipeBarang
   tipeKartu?: TipeKartu
+  description?: string
   priceIDR: number
   weightGrams?: number
 }
@@ -386,6 +387,7 @@ export const useStore = create<StoreState>()(
                 customerId: order.customerId,
                 tipeBarang: it.tipeBarang,
                 tipeKartu: it.tipeKartu,
+                description: it.description,
                 priceIDR: it.priceIDR,
                 weightGrams: it.weightGrams ?? existing?.weightGrams,
                 createdAt: existing?.createdAt ?? now,

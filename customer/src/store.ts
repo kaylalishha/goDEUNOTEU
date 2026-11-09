@@ -33,8 +33,6 @@ interface DemoData {
   batchBills: BatchBill[]
   taxBills: TaxBill[]
   estimatorConfig: EstimatorConfig
-  // Rejections by the (simulated) admin, so the customer can be told about them.
-  rejections: Array<{ kind: BillKind; billId: string; at: string }>
 }
 
 interface State extends DemoData {
@@ -50,7 +48,6 @@ interface State extends DemoData {
     fileName: string
     dataUrl: string
   }) => boolean
-  demoAdminDecision: (kind: BillKind, billId: string, decision: 'confirm' | 'reject') => void
   markNotificationsRead: (ids: string[]) => void
   resetDemo: () => void
   pushToast: (message: string, tone?: Toast['tone']) => void
@@ -66,7 +63,6 @@ function seedData(): DemoData {
     batchBills: seedBatchBills,
     taxBills: seedTaxBills,
     estimatorConfig: seedEstimatorConfig,
-    rejections: [],
   }
 }
 
@@ -123,39 +119,6 @@ export const useStore = create<State>()(
         return true
       },
 
-      // Demo only: stands in for the admin's Confirm / Reject so the full
-      // payment cycle can be tried without the admin dashboard.
-      demoAdminDecision: (kind, billId, decision) => {
-        const now = new Date().toISOString()
-        const s = get()
-        if (kind === 'batch') {
-          set({
-            batchBills: s.batchBills.map((b) =>
-              b.id !== billId || b.status !== 'Menunggu Konfirmasi'
-                ? b
-                : decision === 'confirm'
-                  ? { ...b, status: 'Lunas', paidAt: now }
-                  : { ...b, status: 'Belum Bayar', buktiTransfer: undefined, paidAt: undefined },
-            ),
-          })
-        } else {
-          set({
-            taxBills: s.taxBills.map((t) =>
-              t.id !== billId || t.status !== 'Menunggu Konfirmasi'
-                ? t
-                : decision === 'confirm'
-                  ? { ...t, status: 'Lunas' }
-                  : { ...t, status: 'Belum Bayar', buktiTransfer: undefined },
-            ),
-          })
-        }
-        if (decision === 'reject') set({ rejections: [...get().rejections, { kind, billId, at: now }] })
-        s.pushToast(
-          decision === 'confirm' ? 'Simulasi: admin mengonfirmasi pembayaran.' : 'Simulasi: admin menolak bukti transfer.',
-          decision === 'confirm' ? 'success' : 'error',
-        )
-      },
-
       markNotificationsRead: (ids) =>
         set((s) => ({ readNotificationIds: Array.from(new Set([...s.readNotificationIds, ...ids])) })),
 
@@ -172,7 +135,7 @@ export const useStore = create<State>()(
       dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
     }),
     {
-      name: 'go-deunoteu-customer-demo-v1',
+      name: 'go-deunoteu-customer-demo-v5',
       partialize: ({ toasts: _toasts, ...rest }) => rest,
     },
   ),
@@ -214,9 +177,11 @@ export interface Notification {
   to: string
 }
 
-// FR-GO-L-005: the same four events the backend's notify_bill_change trigger
-// records — new batch bill, new tax bill, payment confirmed, proof rejected.
-export function myNotifications(s: Data & Pick<State, 'rejections'>): Notification[] {
+// FR-GO-L-005: the backend's notify_bill_change trigger records four events —
+// new batch bill, new tax bill, payment confirmed, proof rejected. Demo data
+// only has the first three; "proof rejected" comes with the Supabase
+// notifications table.
+export function myNotifications(s: Data): Notification[] {
   const boxNumber = (id: string) => s.boxes.find((b) => b.id === id)?.boxNumber ?? '—'
   const out: Notification[] = []
   for (const b of myBatchBills(s)) {
@@ -229,17 +194,6 @@ export function myNotifications(s: Data & Pick<State, 'rejections'>): Notificati
     out.push({ id: `new-${t.id}`, message: `Ada ${label} baru untuk kamu.`, at: t.publishedAt, to: '/id/ems-tax' })
     if (t.status === 'Lunas')
       out.push({ id: `ok-${t.id}`, message: `Pembayaran ${label} sudah dikonfirmasi. Terima kasih!`, at: t.buktiTransfer?.uploadedAt ?? t.publishedAt, to: '/id/ems-tax' })
-  }
-  for (const r of s.rejections) {
-    const bill = r.kind === 'batch' ? s.batchBills.find((b) => b.id === r.billId) : s.taxBills.find((t) => t.id === r.billId)
-    if (!bill || bill.customerId !== s.customerId) continue
-    const label = r.kind === 'batch' ? `tagihan ${(bill as BatchBill).batchNumber}` : `tagihan pajak ${boxNumber((bill as TaxBill).boxId)}`
-    out.push({
-      id: `rej-${r.billId}-${r.at}`,
-      message: `Bukti transfer ${label} ditolak. Silakan upload ulang.`,
-      at: r.at,
-      to: r.kind === 'batch' ? '/id/order' : '/id/ems-tax',
-    })
   }
   return out.sort((a, b) => b.at.localeCompare(a.at))
 }
