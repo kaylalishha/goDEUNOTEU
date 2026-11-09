@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
 import { AlertDialog } from '../components/AlertDialog'
@@ -54,6 +55,19 @@ export default function OrderRecap() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
   const [viewingBatchId, setViewingBatchId] = useState<string | null>(null)
+  // Deep link from elsewhere (e.g. the tax form's batch links):
+  // #/orders?batch=<id> opens that batch's record & payment dialog. Waits
+  // for the batch to exist, since remote data loads after first render.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linkedBatchId = searchParams.get('batch')
+  useEffect(() => {
+    if (!linkedBatchId || !batches.some((b) => b.id === linkedBatchId)) return
+    setViewingBatchId(linkedBatchId)
+    setSearchParams((p) => {
+      p.delete('batch')
+      return p
+    }, { replace: true })
+  }, [linkedBatchId, batches, setSearchParams])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [lastClickedIndex, setLastClickedIndex] = useState<number | null>(null)
   const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false)

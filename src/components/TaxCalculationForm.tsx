@@ -18,6 +18,11 @@ function itemLabel(i: Item): string {
 
 const rowKey = (customerId: string, batchId: string) => `${customerId}::${batchId}`
 
+// Plain text inputs with a numeric keyboard instead of type="number": no
+// spinner arrows, no accidental scroll-wheel changes, and "0" stays "0".
+const digitsOnly = (v: string) => v.replace(/\D/g, '')
+const decimalOnly = (v: string) => v.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1')
+
 interface BatchRow {
   key: string
   batchId: string
@@ -62,8 +67,9 @@ export function TaxCalculationForm({
 }) {
   const [boxId, setBoxId] = useState('')
   // Bea Cukai's tax for the non-kartu goods, split across customers by weight.
-  const [nonKartuPool, setNonKartuPool] = useState<number>(0)
-  const [weights, setWeights] = useState<Record<string, number>>({})
+  // Kept as raw strings so an empty field is distinguishable from 0.
+  const [nonKartuPool, setNonKartuPool] = useState('')
+  const [weights, setWeights] = useState<Record<string, string>>({})
   // Admin's manual tax per customer×batch row, kept as the raw input string
   // so the field can be cleared while typing. Absent = use the calculation.
   const [overrides, setOverrides] = useState<Record<string, string>>({})
@@ -78,10 +84,10 @@ export function TaxCalculationForm({
   const nonKartuItems = eligibleItems.filter((i) => i.tipeBarang !== 'Kartu')
   const hasNonKartu = nonKartuItems.length > 0
 
-  const weightOf = (i: Item) => weights[i.id] ?? i.weightGrams ?? 0
+  const weightOf = (i: Item) => Number(weights[i.id] ?? i.weightGrams ?? 0) || 0
   const totalNonKartuWeight = nonKartuItems.reduce((s, i) => s + weightOf(i), 0)
   const totalKartuTax = (eligibleItems.length - nonKartuItems.length) * KARTU_FLAT_TAX_IDR
-  const pool = hasNonKartu ? nonKartuPool : 0
+  const pool = hasNonKartu ? Number(nonKartuPool) || 0 : 0
 
   function getCustomerName(id: string) {
     return customers.find((c) => c.id === id)?.name ?? 'Unknown'
@@ -120,7 +126,8 @@ export function TaxCalculationForm({
             const key = rowKey(customerId, batchId)
             const overrideRaw = overrides[key]
             const parsed = overrideRaw === undefined ? calculatedTax : Number(overrideRaw)
-            const invalid = overrideRaw !== undefined && (overrideRaw.trim() === '' || !(parsed >= 0))
+            // Any whole number is fine, 0 included; only an empty field is invalid.
+            const invalid = overrideRaw !== undefined && overrideRaw === ''
             return {
               key,
               batchId,
@@ -176,16 +183,15 @@ export function TaxCalculationForm({
     if (nonKartuItems.some((i) => !weightOf(i))) {
       return fail('Isi berat (gram) untuk semua item non-kartu di box ini.')
     }
-    if (hasNonKartu && pool <= 0) {
-      return fail('Isi pajak barang non-kartu dari Bea Cukai.')
+    if (hasNonKartu && nonKartuPool === '') {
+      return fail('Isi pajak barang non-kartu dari Bea Cukai (boleh 0).')
     }
     if (groups.some((g) => g.rows.some((r) => r.invalid))) {
-      return fail('Ada nominal pajak yang kosong atau tidak valid. Isi angkanya atau klik "Reset".')
+      return fail('Ada nominal pajak yang masih kosong. Isi angkanya (boleh 0) atau klik "Reset".')
     }
     if (groups.length === 0) {
       return fail('Tidak ada customer yang bisa dipublikasikan pada box ini.')
     }
-    if (grandTotal <= 0) return fail('Total tax box harus lebih dari 0.')
 
     // Noon local time, matching the LINE example's "batas pembayaran ...
     // jam 12:00 siang" convention.
@@ -278,11 +284,11 @@ export function TaxCalculationForm({
               Pajak Barang Non-kartu (IDR)
             </label>
             <input
-              type="number"
-              min={0}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              value={nonKartuPool || ''}
-              onChange={(e) => setNonKartuPool(Number(e.target.value))}
+              type="text"
+              inputMode="numeric"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm tabular-nums"
+              value={nonKartuPool}
+              onChange={(e) => setNonKartuPool(digitsOnly(e.target.value))}
               placeholder="Dari invoice Bea Cukai"
             />
             <p className="mt-1 text-xs text-slate-500">Dibagi ke customer sesuai berat barang non-kartu.</p>
@@ -348,8 +354,26 @@ export function TaxCalculationForm({
                       const edited = r.overrideRaw !== undefined
                       return (
                         <tr key={r.key}>
-                          <td className="whitespace-nowrap px-3 py-2 align-top font-semibold text-rose-600">
-                            {r.batchNumber}
+                          <td className="whitespace-nowrap px-3 py-2 align-top">
+                            {/* New tab so the unpublished form (weights, edits) isn't lost. */}
+                            <a
+                              href={`#/orders?batch=${encodeURIComponent(r.batchId)}`}
+                              target="_blank"
+                              rel="noopener"
+                              title={`Buka record & pembayaran batch ${r.batchNumber} di Order Recap (tab baru)`}
+                              className="group inline-flex items-center gap-1 font-semibold text-rose-600 hover:text-rose-700 hover:underline"
+                            >
+                              {r.batchNumber}
+                              <svg
+                                aria-hidden="true"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                                className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                              >
+                                <path d="M11 3a1 1 0 1 0 0 2h2.59l-6.3 6.29a1 1 0 1 0 1.42 1.42L15 6.41V9a1 1 0 1 0 2 0V4a1 1 0 0 0-1-1h-5Z" />
+                                <path d="M5 5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-3a1 1 0 1 0-2 0v3H5V7h3a1 1 0 0 0 0-2H5Z" />
+                              </svg>
+                            </a>
                           </td>
                           <td className="px-3 py-2 align-top text-slate-700">
                             <ul className="space-y-1">
@@ -364,15 +388,15 @@ export function TaxCalculationForm({
                                     {!isKartu && (
                                       <span className="flex items-center gap-1">
                                         <input
-                                          type="number"
-                                          min={0}
+                                          type="text"
+                                          inputMode="decimal"
                                           aria-label={`Berat ${itemLabel(i)} (gram)`}
-                                          className={`w-20 rounded-md border px-2 py-0.5 text-xs ${
+                                          className={`w-20 rounded-md border px-2 py-0.5 text-xs tabular-nums ${
                                             missingWeight ? 'border-rose-400 bg-rose-50' : 'border-slate-300'
                                           }`}
-                                          value={weights[i.id] ?? i.weightGrams ?? ''}
+                                          value={weights[i.id] ?? (i.weightGrams != null ? String(i.weightGrams) : '')}
                                           onChange={(e) =>
-                                            setWeights((w) => ({ ...w, [i.id]: Number(e.target.value) }))
+                                            setWeights((w) => ({ ...w, [i.id]: decimalOnly(e.target.value) }))
                                           }
                                           placeholder="berat"
                                         />
@@ -395,8 +419,8 @@ export function TaxCalculationForm({
                             <div className="flex items-center justify-end gap-1">
                               <span className="text-xs text-slate-400">Rp</span>
                               <input
-                                type="number"
-                                min={0}
+                                type="text"
+                                inputMode="numeric"
                                 aria-label={`Pajak ${g.name} batch ${r.batchNumber}`}
                                 className={`w-28 rounded-md border px-2 py-1 text-right text-sm tabular-nums ${
                                   r.invalid
@@ -406,7 +430,7 @@ export function TaxCalculationForm({
                                       : 'border-slate-300'
                                 }`}
                                 value={edited ? r.overrideRaw : r.calculatedTax}
-                                onChange={(e) => setOverride(r.key, e.target.value)}
+                                onChange={(e) => setOverride(r.key, digitsOnly(e.target.value))}
                               />
                             </div>
                             {edited && (
