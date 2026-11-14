@@ -7,7 +7,8 @@ import { TaxBoxDetailDialog } from '../components/TaxBoxDetailDialog'
 import { DeadlineBadge } from '../components/DeadlineBadge'
 import { EmptyState } from '../components/EmptyState'
 import { PAGE_SIZE, Pagination } from '../components/Pagination'
-import { daysRemaining, formatDate, formatIDR } from '../lib/format'
+import { formatDate, formatIDR } from '../lib/format'
+import { isTaxOverdue } from '../lib/billing'
 import { TAX_BILL_STATUSES, type BoxStatus, type TaxBill, type TaxBillStatus } from '../types'
 
 // Tax can only be calculated once a box has actually left Japan and its
@@ -141,7 +142,7 @@ export default function TaxBills() {
     acc[s] = taxBills.filter((t) => t.status === s).length
     return acc
   }, {})
-  const overdueCount = taxBills.filter((t) => t.status !== 'Lunas' && daysRemaining(t.deadline) < 0).length
+  const overdueCount = taxBills.filter(isTaxOverdue).length
 
   // A pending confirmation outranks "how many are paid/unpaid" until it's
   // resolved — same rule as the batch Payment column on Order Recap.

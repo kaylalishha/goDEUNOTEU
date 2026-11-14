@@ -1,6 +1,13 @@
 import { Link } from 'react-router-dom'
 import { useStore } from '../store/useStore'
-import { formatIDR, daysRemaining } from '../lib/format'
+import { formatIDR } from '../lib/format'
+import {
+  emptyPaymentCounts,
+  isTaxOverdue,
+  paymentCountsByBatch,
+  taxAmountDue,
+  taxDaysOverdue,
+} from '../lib/billing'
 import { StatusBadge } from '../components/StatusBadge'
 import {
   ORDER_STATUS_OPTIONS,
@@ -303,13 +310,15 @@ export default function Overview() {
   const totalRevenue = sales.reduce((s, x) => s + x.revenue, 0)
   const maxSalesCount = Math.max(0, ...sales.map((x) => x.count))
 
-  const overdueTax = taxBills.filter((t) => t.status !== 'Lunas' && daysRemaining(t.deadline) < 0)
+  // Same rule as Tax Bills' "melewati deadline" banner and DeadlineBadge.
+  const overdueTax = taxBills.filter(isTaxOverdue)
 
-  // ── Perlu Perhatian: unpaid (not Lunas) bills past their deadline + grace.
+  // ── Perlu Perhatian
   const now = Date.now()
   // A batch needs attention when any of its bills is still unpaid more than
   // BATCH_DUE_DAYS after being issued (batch bills carry no deadline field).
-  // Shown per batch: paid / total customers billed in that batch.
+  // Shown per batch with Order Recap's own payment counts: paid / total.
+  const countsByBatch = paymentCountsByBatch(batchBills)
   const overdueBatchIds = new Set(
     batchBills
       .filter(
@@ -319,30 +328,34 @@ export default function Overview() {
       )
       .map((b) => b.batchId),
   )
-  const batchAttention: BatchChip[] = [...overdueBatchIds]
-    .map((batchId) => {
-      const bills = batchBills.filter((b) => b.batchId === batchId)
+  const batchAttention: BatchChip[] = batches
+    .filter((batch) => overdueBatchIds.has(batch.id))
+    .map((batch) => {
+      const counts = countsByBatch.get(batch.id) ?? emptyPaymentCounts()
       return {
-        batchId,
-        batchNumber: bills[0]?.batchNumber ?? '—',
-        paid: bills.filter((b) => b.status === 'Lunas').length,
-        total: bills.length,
-        unpaidNames: bills.filter((b) => b.status !== 'Lunas').map((b) => getCustomerName(b.customerId)),
+        batchId: batch.id,
+        // From the batch record, exactly as Order Recap shows it.
+        batchNumber: batch.batchNumber,
+        paid: counts.Lunas,
+        total: counts.Lunas + counts['Menunggu Konfirmasi'] + counts['Belum Bayar'],
+        unpaidNames: batchBills
+          .filter((b) => b.batchId === batch.id && b.status !== 'Lunas')
+          .map((b) => getCustomerName(b.customerId)),
       }
     })
     .sort((a, b) => a.batchNumber.localeCompare(b.batchNumber, undefined, { numeric: true }))
 
-  const taxAttention: AttentionRow[] = taxBills
-    .filter((t) => t.status !== 'Lunas')
-    .map((t) => ({ bill: t, daysLate: daysPast(new Date(t.deadline).getTime(), now) }))
-    .filter((x) => x.daysLate !== null && x.daysLate > TAX_GRACE_DAYS)
-    .map(({ bill: t, daysLate }) => ({
+  // Tax: overdue (as on Tax Bills) by more than TAX_GRACE_DAYS. The flag is
+  // the same N that Tax Bills shows as "Overdue N hari".
+  const taxAttention: AttentionRow[] = overdueTax
+    .filter((t) => taxDaysOverdue(t) > TAX_GRACE_DAYS)
+    .map((t) => ({
       key: t.id,
       title: getCustomerName(t.customerId),
       subtitle: `Box ${getBoxNumber(t.boxId)}`,
-      amount: t.total + t.lateFeeIDR,
+      amount: taxAmountDue(t),
       status: t.status,
-      daysLate: daysLate!,
+      daysLate: taxDaysOverdue(t),
       to: `/tax-bills?box=${encodeURIComponent(t.boxId)}`,
     }))
     .sort((a, b) => b.daysLate - a.daysLate)

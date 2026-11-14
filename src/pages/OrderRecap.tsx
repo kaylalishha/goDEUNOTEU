@@ -8,6 +8,7 @@ import { BatchDetailDialog } from '../components/BatchDetailDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { CustomerCombobox } from '../components/CustomerCombobox'
 import { guardBatchDeletion } from '../lib/deleteGuards'
+import { paymentCountsByBatch } from '../lib/billing'
 import { formatDate, formatIDR } from '../lib/format'
 import {
   BATCH_BILL_STATUSES,
@@ -86,18 +87,11 @@ export default function OrderRecap() {
 
   // One batch can hold several customers, each with their own BatchBill —
   // so "payment status" per batch is a count per status, not one scalar.
-  const paymentCountsByBatch = useMemo(() => {
-    const map = new Map<string, Record<BatchBillStatus, number>>()
-    for (const bill of batchBills) {
-      const counts = map.get(bill.batchId) ?? { ...EMPTY_PAYMENT_COUNTS }
-      counts[bill.status] += 1
-      map.set(bill.batchId, counts)
-    }
-    return map
-  }, [batchBills])
+  // Shared with Overview (lib/billing) so both pages count the same way.
+  const countsByBatch = useMemo(() => paymentCountsByBatch(batchBills), [batchBills])
 
   function paymentCountsFor(batchId: string): Record<BatchBillStatus, number> {
-    return paymentCountsByBatch.get(batchId) ?? EMPTY_PAYMENT_COUNTS
+    return countsByBatch.get(batchId) ?? EMPTY_PAYMENT_COUNTS
   }
 
   // A pending confirmation is the only thing worth surfacing once it
@@ -118,14 +112,14 @@ export default function OrderRecap() {
   const paymentStatusBatchCounts = useMemo(() => {
     const acc: Record<BatchBillStatus, number> = { ...EMPTY_PAYMENT_COUNTS }
     for (const batch of batches) {
-      const counts = paymentCountsByBatch.get(batch.id)
+      const counts = countsByBatch.get(batch.id)
       if (!counts) continue
       for (const status of BATCH_BILL_STATUSES) {
         if (counts[status] > 0) acc[status] += 1
       }
     }
     return acc
-  }, [batches, paymentCountsByBatch])
+  }, [batches, countsByBatch])
 
   const filtered = batches.filter((b) => {
     if (boxFilter && b.boxId !== boxFilter) return false
