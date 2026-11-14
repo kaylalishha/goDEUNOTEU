@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useStore } from '../store/useStore'
 import { Modal } from '../components/Modal'
 import { TaxCalculationForm } from '../components/TaxCalculationForm'
@@ -46,6 +47,18 @@ export default function TaxBills() {
   const [statusFilter, setStatusFilter] = useState<TaxBillStatus | ''>('')
   const [customerQuery, setCustomerQuery] = useState('')
   const [viewingBoxId, setViewingBoxId] = useState<string | null>(null)
+  // Deep link (e.g. from Overview's "Perlu Perhatian"): #/tax-bills?box=<id>
+  // opens that box's tax detail. Waits for the box's bills to load.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const linkedBoxId = searchParams.get('box')
+  useEffect(() => {
+    if (!linkedBoxId || !taxBills.some((t) => t.boxId === linkedBoxId)) return
+    setViewingBoxId(linkedBoxId)
+    setSearchParams((p) => {
+      p.delete('box')
+      return p
+    }, { replace: true })
+  }, [linkedBoxId, taxBills, setSearchParams])
   const [page, setPage] = useState(1)
 
   // Publish is one-shot per box: only offer boxes that (a) have actually

@@ -55,9 +55,9 @@ export default function OrderRecap() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingBatch, setEditingBatch] = useState<Batch | null>(null)
   const [viewingBatchId, setViewingBatchId] = useState<string | null>(null)
-  // Deep link from elsewhere (e.g. the tax form's batch links):
-  // #/orders?batch=<id> opens that batch's record & payment dialog. Waits
-  // for the batch to exist, since remote data loads after first render.
+  // Deep link from elsewhere (Overview's "Perlu Perhatian", the tax form):
+  // #/orders?batch=<id> opens that batch's record dialog. Waits for the
+  // batch to exist, since remote data loads after first render.
   const [searchParams, setSearchParams] = useSearchParams()
   const linkedBatchId = searchParams.get('batch')
   useEffect(() => {
