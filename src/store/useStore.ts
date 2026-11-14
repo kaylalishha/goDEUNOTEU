@@ -19,7 +19,6 @@ import type {
   BatchBillStatus,
   Box,
   BoxStatus,
-  BuktiTransfer,
   Customer,
   EstimatorConfig,
   Item,
@@ -29,7 +28,7 @@ import type {
   TipeBarang,
   TipeKartu,
 } from '../types'
-import { DEFAULT_BOX_STATUS, PAYMENT_METHOD_OPTIONS } from '../types'
+import { DEFAULT_BOX_STATUS } from '../types'
 
 const DEFAULT_BANK_ACCOUNT = 'BCA 1234567890 a.n. Admin GO Aikatsu'
 
@@ -125,7 +124,6 @@ interface StoreState {
   // src/lib/deleteGuards.ts for the exact rule.
   deleteBatches: (batchIds: string[]) => Promise<boolean>
   setItemWeights: (weights: Array<{ itemId: string; weightGrams: number }>) => Promise<boolean>
-  simulateCustomerUploadBatch: (batchBillId: string) => Promise<boolean>
   confirmBatchBill: (batchBillId: string) => Promise<boolean>
   rejectBatchBill: (batchBillId: string) => Promise<boolean>
 
@@ -155,7 +153,6 @@ interface StoreState {
     >,
     deadline: string,
   ) => Promise<boolean>
-  simulateCustomerUploadTax: (taxBillId: string) => Promise<boolean>
   confirmTaxBill: (taxBillId: string) => Promise<boolean>
   rejectTaxBill: (taxBillId: string) => Promise<boolean>
   // Overrides one customer's published tax amount directly — the box's
@@ -182,21 +179,6 @@ interface StoreState {
 
   // Feature D
   updateEstimatorConfig: (patch: Partial<Omit<EstimatorConfig, 'updatedAt'>>) => Promise<boolean>
-}
-
-function attachDemoBukti(): BuktiTransfer {
-  const paymentMethod =
-    PAYMENT_METHOD_OPTIONS[Math.floor(Math.random() * PAYMENT_METHOD_OPTIONS.length)]
-  return {
-    fileName: `bukti_${Date.now()}.png`,
-    dataUrl:
-      'data:image/svg+xml;utf8,' +
-      encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="#f1f5f9"/><text x="160" y="105" font-family="monospace" font-size="13" text-anchor="middle" fill="#334155">bukti transfer (simulasi)</text></svg>`,
-      ),
-    uploadedAt: new Date().toISOString(),
-    paymentMethod,
-  }
 }
 
 // Auto-billing: every customer present in a batch gets (or keeps) exactly
@@ -566,24 +548,6 @@ export const useStore = create<StoreState>()(
         return true
       },
 
-      simulateCustomerUploadBatch: async (batchBillId) => {
-        if (isRemote) {
-          const bill = get().batchBills.find((b) => b.id === batchBillId)
-          if (!bill) return false
-          return runRemote(() =>
-            remote.simulateCustomerUpload('batch', batchBillId, bill.customerId, attachDemoBukti()),
-          )
-        }
-        set((s) => ({
-          batchBills: s.batchBills.map((b) =>
-            b.id === batchBillId
-              ? { ...b, status: 'Menunggu Konfirmasi' as BatchBillStatus, buktiTransfer: attachDemoBukti() }
-              : b,
-          ),
-        }))
-        return true
-      },
-
       confirmBatchBill: async (batchBillId) => {
         if (isRemote) {
           return runRemote(async () => {
@@ -643,24 +607,6 @@ export const useStore = create<StoreState>()(
           return { taxBills: [...newBills, ...s.taxBills] }
         })
         get().pushToast(successMessage(), 'success')
-        return true
-      },
-
-      simulateCustomerUploadTax: async (taxBillId) => {
-        if (isRemote) {
-          const bill = get().taxBills.find((t) => t.id === taxBillId)
-          if (!bill) return false
-          return runRemote(() =>
-            remote.simulateCustomerUpload('tax', taxBillId, bill.customerId, attachDemoBukti()),
-          )
-        }
-        set((s) => ({
-          taxBills: s.taxBills.map((t) =>
-            t.id === taxBillId
-              ? { ...t, status: 'Menunggu Konfirmasi' as TaxBillStatus, buktiTransfer: attachDemoBukti() }
-              : t,
-          ),
-        }))
         return true
       },
 

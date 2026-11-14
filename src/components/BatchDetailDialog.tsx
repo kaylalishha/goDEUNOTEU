@@ -25,7 +25,6 @@ export function BatchDetailDialog({
   const getBoxNumber = useStore((s) => s.getBoxNumber)
   const confirmBatchBill = useStore((s) => s.confirmBatchBill)
   const rejectBatchBill = useStore((s) => s.rejectBatchBill)
-  const simulateCustomerUploadBatch = useStore((s) => s.simulateCustomerUploadBatch)
   const pushToast = useStore((s) => s.pushToast)
 
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null)
@@ -240,18 +239,6 @@ export function BatchDetailDialog({
                                 Reject
                               </button>
                             </div>
-                          </div>
-                        )}
-
-                        {bill && bill.status === 'Belum Bayar' && (
-                          <div className="mb-3 flex justify-end">
-                            <button
-                              onClick={() => simulateCustomerUploadBatch(bill.id)}
-                              className="text-xs text-slate-400 underline hover:text-slate-600"
-                              title="Demo helper: simulasikan customer meng-upload bukti transfer (belum ada Customer Dashboard)"
-                            >
-                              Simulate customer upload (demo)
-                            </button>
                           </div>
                         )}
 

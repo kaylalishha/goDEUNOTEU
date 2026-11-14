@@ -26,7 +26,6 @@ export function TaxBoxDetailDialog({
   const boxNumber = useStore((s) => s.getBoxNumber(boxId))
   const confirmTaxBill = useStore((s) => s.confirmTaxBill)
   const rejectTaxBill = useStore((s) => s.rejectTaxBill)
-  const simulateCustomerUploadTax = useStore((s) => s.simulateCustomerUploadTax)
   const updateTaxBillAmount = useStore((s) => s.updateTaxBillAmount)
   const updateTaxBillLateFee = useStore((s) => s.updateTaxBillLateFee)
   const updateBoxDeadline = useStore((s) => s.updateBoxDeadline)
@@ -428,18 +427,6 @@ export function TaxBoxDetailDialog({
                               Reject
                             </button>
                           </div>
-                        </div>
-                      )}
-
-                      {t.status === 'Belum Bayar' && (
-                        <div className="mb-3 flex justify-end">
-                          <button
-                            onClick={() => simulateCustomerUploadTax(t.id)}
-                            className="text-xs text-slate-400 underline hover:text-slate-600"
-                            title="Demo helper: simulasikan customer meng-upload bukti transfer"
-                          >
-                            Simulate customer upload (demo)
-                          </button>
                         </div>
                       )}
 

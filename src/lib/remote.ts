@@ -387,27 +387,6 @@ export async function setItemWeights(weights: Array<{ itemId: string; weightGram
 type BillKind = 'batch' | 'tax'
 const BILL_TABLE: Record<BillKind, string> = { batch: 'batch_bills', tax: 'tax_bills' }
 
-// Demo stand-in for the Customer Dashboard: uploads a placeholder receipt
-// and submits it through the same RPC customers will use.
-export async function simulateCustomerUpload(
-  kind: BillKind,
-  billId: string,
-  customerId: string,
-  receipt: BuktiTransfer,
-) {
-  const path = `${customerId}/${billId}-${Date.now()}.svg`
-  await uploadDataUrl(BUKTI_BUCKET, path, receipt.dataUrl)
-  check(
-    await db().rpc('submit_payment_proof', {
-      p_kind: kind,
-      p_bill_id: billId,
-      p_path: path,
-      p_file_name: receipt.fileName,
-      p_method: receipt.paymentMethod,
-    }),
-  )
-}
-
 export async function confirmBill(kind: BillKind, billId: string) {
   const patch: Record<string, unknown> = { status: 'Lunas' }
   if (kind === 'batch') patch.paid_at = new Date().toISOString()

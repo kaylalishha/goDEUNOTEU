@@ -586,5 +586,3 @@ export const seedEstimatorConfig: EstimatorConfig = {
   serviceFeeValue: 10,
   updatedAt: daysAgoIso(20),
 }
-
-export const DEMO_RECEIPT_DATA_URL = PLACEHOLDER_RECEIPT
